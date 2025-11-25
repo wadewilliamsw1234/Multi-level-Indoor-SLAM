@@ -1,0 +1,66 @@
+# Sample camera calibration file (Kalibr format)
+# Based on ISEC dataset specifications from the paper
+# All cameras: pinhole model, radtan distortion, 720x540 resolution
+# cam0-cam4: Front-facing array
+# cam5: Left-facing side camera
+# cam6: Right-facing side camera
+
+cam0:
+  camera_model: pinhole
+  distortion_model: radtan
+  intrinsics: [891.08, 891.36, 368.84, 275.06]  # [fx, fy, cx, cy]
+  distortion_coeffs: [-0.21272110177039052, 0.18283401892861978, -0.00018083866109219808, 0.0011164116025029272]
+  resolution: [720, 540]
+  rostopic: /camera_array/cam0/image_raw
+
+cam1:
+  camera_model: pinhole
+  distortion_model: radtan
+  intrinsics: [893.6263545058326, 893.9655105687939, 376.95348001716707, 266.57152598273194]
+  distortion_coeffs: [-0.21272110177039052, 0.18283401892861978, -0.00018083866109219808, 0.0011164116025029272]
+  resolution: [720, 540]
+  rostopic: /camera_array/cam1/image_raw
+  T_cn_cnm1:  # Transform from cam0 to cam1
+  - [0.9999, 0.0, 0.0, 0.164]
+  - [0.0, 1.0, 0.0, 0.0]
+  - [0.0, 0.0, 1.0, 0.0]
+  - [0.0, 0.0, 0.0, 1.0]
+
+cam2:
+  camera_model: pinhole
+  distortion_model: radtan
+  intrinsics: [890.74, 891.04, 365.53, 279.23]
+  distortion_coeffs: [-0.21272110177039052, 0.18283401892861978, -0.00018083866109219808, 0.0011164116025029272]
+  resolution: [720, 540]
+  rostopic: /camera_array/cam2/image_raw
+  T_cn_cnm1:  # Transform from cam1 to cam2
+  - [0.9999, 0.0, 0.0, 0.164]
+  - [0.0, 1.0, 0.0, 0.0]
+  - [0.0, 0.0, 1.0, 0.0]
+  - [0.0, 0.0, 0.0, 1.0]
+
+cam3:
+  camera_model: pinhole
+  distortion_model: radtan
+  intrinsics: [890.41, 890.60, 370.45, 281.40]
+  distortion_coeffs: [-0.21272110177039052, 0.18283401892861978, -0.00018083866109219808, 0.0011164116025029272]
+  resolution: [720, 540]
+  rostopic: /camera_array/cam3/image_raw
+  T_cn_cnm1:  # Transform from cam2 to cam3
+  - [0.9999, 0.0, 0.0, 0.164]
+  - [0.0, 1.0, 0.0, 0.0]
+  - [0.0, 0.0, 1.0, 0.0]
+  - [0.0, 0.0, 0.0, 1.0]
+
+cam4:
+  camera_model: pinhole
+  distortion_model: radtan
+  intrinsics: [891.32, 891.63, 368.46, 272.86]
+  distortion_coeffs: [-0.21272110177039052, 0.18283401892861978, -0.00018083866109219808, 0.0011164116025029272]
+  resolution: [720, 540]
+  rostopic: /camera_array/cam4/image_raw
+  T_cn_cnm1:  # Transform from cam3 to cam4
+  - [0.9999, 0.0, 0.0, 0.164]
+  - [0.0, 1.0, 0.0, 0.0]
+  - [0.0, 0.0, 1.0, 0.0]
+  - [0.0, 0.0, 0.0, 1.0]

@@ -1,0 +1,21 @@
+# Sample IMU parameters file
+# Based on VectorNav VN-100 specifications from ISEC dataset
+# All values in SI units
+
+imu0:
+  # Update rate
+  update_rate: 200.0  # Hz
+  
+  # Gyroscope parameters
+  gyroscope_noise_density: 0.00018    # rad/s/sqrt(Hz)
+  gyroscope_random_walk: 0.0000018    # rad/s^2/sqrt(Hz)
+  
+  # Accelerometer parameters
+  accelerometer_noise_density: 0.003  # m/s^2/sqrt(Hz)
+  accelerometer_random_walk: 0.00003  # m/s^3/sqrt(Hz)
+  
+  # Time offset (camera to IMU)
+  timeshift_cam_imu: 0.0
+  
+  # ROS topic
+  rostopic: /vectornav/imu

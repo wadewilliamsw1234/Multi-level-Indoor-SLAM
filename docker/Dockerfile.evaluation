@@ -1,0 +1,41 @@
+# Dockerfile.evaluation
+# Evaluation and visualization container for SLAM benchmarking
+
+FROM python:3.10-slim
+
+LABEL maintainer="SLAM Benchmark Project"
+LABEL description="Evaluation and visualization tools"
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    git \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python packages
+RUN pip install --no-cache-dir \
+    numpy \
+    scipy \
+    pandas \
+    matplotlib \
+    plotly \
+    kaleido \
+    pyyaml \
+    tqdm \
+    evo \
+    transforms3d \
+    seaborn
+
+# Create directories
+RUN mkdir -p /results /scripts /config
+
+# Copy scripts
+COPY scripts/ /scripts/
+
+# Set working directory
+WORKDIR /workspace
+
+# Default command
+CMD ["python3", "/scripts/evaluate.py", "--all"]

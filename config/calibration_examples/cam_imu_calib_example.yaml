@@ -1,0 +1,17 @@
+# Sample camera-IMU calibration file (Kalibr format)
+# Based on cam2_imu_calib.yaml from ISEC dataset
+# T_cam_imu: transformation from IMU frame to camera frame
+
+cam0:
+  T_cam_imu:
+  - [0.0, -1.0, 0.0, 0.05]
+  - [0.0, 0.0, -1.0, -0.03]
+  - [1.0, 0.0, 0.0, 0.02]
+  - [0.0, 0.0, 0.0, 1.0]
+  camera_model: pinhole
+  distortion_model: radtan
+  intrinsics: [890.74, 891.04, 365.53, 279.23]
+  distortion_coeffs: [-0.21272110177039052, 0.18283401892861978, -0.00018083866109219808, 0.0011164116025029272]
+  resolution: [720, 540]
+  rostopic: /camera_array/cam2/image_raw
+  timeshift_cam_imu: 0.0

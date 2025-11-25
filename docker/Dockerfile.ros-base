@@ -1,0 +1,71 @@
+# Dockerfile.ros-base
+# Base image for ROS Noetic with bag playback and utility libraries
+
+FROM ros:noetic-perception
+
+LABEL maintainer="SLAM Benchmark Project"
+LABEL description="ROS Noetic base image with bag playback utilities"
+
+# Avoid interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    # Build tools
+    build-essential \
+    cmake \
+    git \
+    pkg-config \
+    # Python
+    python3-pip \
+    python3-dev \
+    python3-numpy \
+    python3-opencv \
+    python3-yaml \
+    # ROS tools
+    python3-rosbag \
+    python3-rospy \
+    python3-rostopic \
+    python3-roslaunch \
+    ros-noetic-cv-bridge \
+    ros-noetic-image-transport \
+    ros-noetic-tf \
+    ros-noetic-tf2-ros \
+    ros-noetic-sensor-msgs \
+    ros-noetic-geometry-msgs \
+    ros-noetic-nav-msgs \
+    # Image/video utilities
+    libopencv-dev \
+    libeigen3-dev \
+    # Useful tools
+    vim \
+    wget \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python packages
+RUN pip3 install --no-cache-dir \
+    numpy \
+    scipy \
+    matplotlib \
+    pyyaml \
+    tqdm \
+    evo \
+    pandas \
+    plotly \
+    transforms3d
+
+# Set up ROS environment
+RUN echo "source /opt/ros/noetic/setup.bash" >> ~/.bashrc
+
+# Create working directories
+RUN mkdir -p /data/ISEC /results /scripts /config
+
+# Copy scripts
+COPY scripts/ /scripts/
+
+# Set working directory
+WORKDIR /workspace
+
+# Default command: source ROS and start bash
+CMD ["/bin/bash", "-c", "source /opt/ros/noetic/setup.bash && bash"]

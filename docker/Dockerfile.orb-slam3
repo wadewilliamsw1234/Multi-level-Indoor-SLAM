@@ -1,0 +1,416 @@
+# ORB-SLAM3 Stereo for ISEC Dataset
+# Based on ROS Noetic for bag playback compatibility
+# Self-contained - no external COPY dependencies
+
+FROM ros:noetic-perception
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install all dependencies including Pangolin requirements
+RUN apt-get update && apt-get install -y \
+    git \
+    cmake \
+    build-essential \
+    pkg-config \
+    libeigen3-dev \
+    libopencv-dev \
+    libglew-dev \
+    libboost-all-dev \
+    libssl-dev \
+    python3-pip \
+    python3-catkin-tools \
+    ros-noetic-cv-bridge \
+    ros-noetic-image-transport \
+    ros-noetic-message-filters \
+    ros-noetic-tf \
+    wget \
+    unzip \
+    libepoxy-dev \
+    libgl1-mesa-dev \
+    libwayland-dev \
+    libxkbcommon-dev \
+    wayland-protocols \
+    libegl1-mesa-dev \
+    libpng-dev \
+    libjpeg-dev \
+    libtiff-dev \
+    libopenexr-dev \
+    ffmpeg \
+    libavcodec-dev \
+    libavutil-dev \
+    libavformat-dev \
+    libswscale-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt
+
+# Install Pangolin v0.6 (compatible with ORB-SLAM3)
+RUN git clone https://github.com/stevenlovegrove/Pangolin.git && \
+    cd Pangolin && \
+    git checkout v0.6 && \
+    git submodule update --init --recursive && \
+    mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release \
+             -DBUILD_TESTS=OFF \
+             -DBUILD_EXAMPLES=OFF && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig && \
+    cd /opt && rm -rf Pangolin
+
+# Clone ORB-SLAM3
+RUN git clone https://github.com/UZ-SLAMLab/ORB_SLAM3.git
+
+WORKDIR /opt/ORB_SLAM3
+
+# Fix CMakeLists.txt for OpenCV 4.x compatibility
+RUN sed -i 's/find_package(OpenCV 4.4)/find_package(OpenCV 4)/g' CMakeLists.txt && \
+    sed -i 's/find_package(OpenCV 3)/find_package(OpenCV 4)/g' CMakeLists.txt
+
+# Fix for C++14 compatibility
+RUN sed -i 's/++11/++14/g' CMakeLists.txt && \
+    sed -i 's/++11/++14/g' Thirdparty/DBoW2/CMakeLists.txt && \
+    sed -i 's/++11/++14/g' Thirdparty/g2o/CMakeLists.txt
+
+# Build Thirdparty libraries
+RUN cd Thirdparty/DBoW2 && \
+    mkdir -p build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release && \
+    make -j$(nproc)
+
+RUN cd Thirdparty/g2o && \
+    mkdir -p build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release && \
+    make -j$(nproc)
+
+# Uncompress vocabulary
+RUN cd Vocabulary && tar -xf ORBvoc.txt.tar.gz
+
+# Build ORB-SLAM3 main library
+RUN mkdir -p build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release && \
+    make -j$(nproc)
+
+# Create catkin workspace for ROS integration
+WORKDIR /root/catkin_ws/src
+RUN /bin/bash -c "source /opt/ros/noetic/setup.bash && catkin_init_workspace"
+
+# Create ROS wrapper package directories
+RUN mkdir -p /root/catkin_ws/src/orb_slam3_ros/src
+
+# Create package.xml using heredoc
+RUN cat << 'PACKAGEXML' > /root/catkin_ws/src/orb_slam3_ros/package.xml
+<?xml version="1.0"?>
+<package format="2">
+  <name>orb_slam3_ros</name>
+  <version>1.0.0</version>
+  <description>ORB-SLAM3 ROS wrapper for ISEC dataset</description>
+  <maintainer email="user@example.com">User</maintainer>
+  <license>GPLv3</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>cv_bridge</build_depend>
+  <build_depend>image_transport</build_depend>
+  <build_depend>tf</build_depend>
+  <build_depend>message_filters</build_depend>
+  <exec_depend>roscpp</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>image_transport</exec_depend>
+  <exec_depend>tf</exec_depend>
+  <exec_depend>message_filters</exec_depend>
+</package>
+PACKAGEXML
+
+# Create CMakeLists.txt using heredoc
+RUN cat << 'CMAKELISTS' > /root/catkin_ws/src/orb_slam3_ros/CMakeLists.txt
+cmake_minimum_required(VERSION 3.0)
+project(orb_slam3_ros)
+
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+find_package(catkin REQUIRED COMPONENTS
+  roscpp
+  std_msgs
+  sensor_msgs
+  cv_bridge
+  image_transport
+  tf
+  message_filters
+)
+
+find_package(OpenCV 4 REQUIRED)
+find_package(Eigen3 REQUIRED)
+find_package(Pangolin REQUIRED)
+
+catkin_package()
+
+include_directories(
+  ${catkin_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
+  ${EIGEN3_INCLUDE_DIR}
+  ${Pangolin_INCLUDE_DIRS}
+  /opt/ORB_SLAM3
+  /opt/ORB_SLAM3/include
+  /opt/ORB_SLAM3/include/CameraModels
+  /opt/ORB_SLAM3/Thirdparty/Sophus
+)
+
+set(ORB_SLAM3_LIBS
+  /opt/ORB_SLAM3/lib/libORB_SLAM3.so
+  ${OpenCV_LIBS}
+  ${EIGEN3_LIBS}
+  ${Pangolin_LIBRARIES}
+  -lboost_serialization
+  -lcrypto
+)
+
+add_executable(stereo_node src/stereo_node.cpp)
+target_link_libraries(stereo_node ${catkin_LIBRARIES} ${ORB_SLAM3_LIBS})
+CMAKELISTS
+
+# Create stereo_node.cpp using heredoc
+RUN cat << 'STEREONODE' > /root/catkin_ws/src/orb_slam3_ros/src/stereo_node.cpp
+#include <iostream>
+#include <algorithm>
+#include <fstream>
+#include <chrono>
+#include <iomanip>
+
+#include <ros/ros.h>
+#include <cv_bridge/cv_bridge.h>
+#include <sensor_msgs/Image.h>
+#include <message_filters/subscriber.h>
+#include <message_filters/time_synchronizer.h>
+#include <message_filters/sync_policies/approximate_time.h>
+
+#include <opencv2/core/core.hpp>
+
+#include "System.h"
+
+using namespace std;
+
+class StereoNode {
+public:
+    StereoNode(ORB_SLAM3::System* pSLAM, const string& output_file) 
+        : mpSLAM(pSLAM), mOutputFile(output_file), mFrameCount(0) {
+        mTrajFile.open(output_file);
+        mTrajFile << fixed;
+    }
+
+    ~StereoNode() {
+        if (mTrajFile.is_open()) {
+            mTrajFile.close();
+        }
+    }
+
+    void GrabStereo(const sensor_msgs::ImageConstPtr& msgLeft,
+                    const sensor_msgs::ImageConstPtr& msgRight) {
+        cv_bridge::CvImageConstPtr cv_ptrLeft, cv_ptrRight;
+        try {
+            cv_ptrLeft = cv_bridge::toCvShare(msgLeft);
+            cv_ptrRight = cv_bridge::toCvShare(msgRight);
+        } catch (cv_bridge::Exception& e) {
+            ROS_ERROR("cv_bridge exception: %s", e.what());
+            return;
+        }
+
+        double timestamp = msgLeft->header.stamp.toSec();
+        Sophus::SE3f Tcw = mpSLAM->TrackStereo(cv_ptrLeft->image, cv_ptrRight->image, timestamp);
+        
+        if (mpSLAM->GetTrackingState() == ORB_SLAM3::Tracking::OK) {
+            Sophus::SE3f Twc = Tcw.inverse();
+            Eigen::Vector3f t = Twc.translation();
+            Eigen::Quaternionf q = Twc.unit_quaternion();
+            mTrajFile << setprecision(6) << timestamp << " "
+                      << setprecision(9) << t.x() << " " << t.y() << " " << t.z() << " "
+                      << q.x() << " " << q.y() << " " << q.z() << " " << q.w() << endl;
+        }
+        
+        mFrameCount++;
+        if (mFrameCount % 100 == 0) {
+            ROS_INFO("Processed %d frames", mFrameCount);
+        }
+    }
+
+private:
+    ORB_SLAM3::System* mpSLAM;
+    string mOutputFile;
+    ofstream mTrajFile;
+    int mFrameCount;
+};
+
+int main(int argc, char **argv) {
+    ros::init(argc, argv, "orb_slam3_stereo");
+    ros::NodeHandle nh("~");
+
+    string vocab_path, config_path, output_path;
+    string left_topic, right_topic;
+    bool use_viewer;
+
+    nh.param<string>("vocab_path", vocab_path, "/opt/ORB_SLAM3/Vocabulary/ORBvoc.txt");
+    nh.param<string>("config_path", config_path, "/config/orb_slam3/ISEC_stereo.yaml");
+    nh.param<string>("output_path", output_path, "/results/trajectories/orb_slam3/trajectory.txt");
+    nh.param<string>("left_topic", left_topic, "/camera_array/cam1/image_raw");
+    nh.param<string>("right_topic", right_topic, "/camera_array/cam3/image_raw");
+    nh.param<bool>("use_viewer", use_viewer, false);
+
+    ROS_INFO("ORB-SLAM3 Stereo Node");
+    ROS_INFO("Vocabulary: %s", vocab_path.c_str());
+    ROS_INFO("Config: %s", config_path.c_str());
+    ROS_INFO("Output: %s", output_path.c_str());
+    ROS_INFO("Left topic: %s", left_topic.c_str());
+    ROS_INFO("Right topic: %s", right_topic.c_str());
+
+    ORB_SLAM3::System SLAM(vocab_path, config_path, ORB_SLAM3::System::STEREO, use_viewer);
+    StereoNode node(&SLAM, output_path);
+
+    message_filters::Subscriber<sensor_msgs::Image> left_sub(nh, left_topic, 100);
+    message_filters::Subscriber<sensor_msgs::Image> right_sub(nh, right_topic, 100);
+
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> sync_pol;
+    message_filters::Synchronizer<sync_pol> sync(sync_pol(10), left_sub, right_sub);
+    sync.registerCallback(boost::bind(&StereoNode::GrabStereo, &node, _1, _2));
+
+    ros::spin();
+
+    SLAM.Shutdown();
+
+    return 0;
+}
+STEREONODE
+
+# Build the ROS workspace
+WORKDIR /root/catkin_ws
+RUN /bin/bash -c "source /opt/ros/noetic/setup.bash && catkin_make -DCMAKE_BUILD_TYPE=Release"
+
+# Create run script for single floor using heredoc
+RUN cat << 'RUNFLOOR' > /root/run_orb_slam3_floor.sh
+#!/bin/bash
+set -e
+
+FLOOR=${1:-5th_floor}
+DATA_DIR="/data/ISEC/${FLOOR}"
+OUTPUT_DIR="/results/trajectories/orb_slam3"
+LOG_DIR="/results/logs"
+VOCAB_PATH="/opt/ORB_SLAM3/Vocabulary/ORBvoc.txt"
+CONFIG_PATH="/config/orb_slam3/ISEC_stereo.yaml"
+
+source /opt/ros/noetic/setup.bash
+source /root/catkin_ws/devel/setup.bash
+
+mkdir -p "${OUTPUT_DIR}" "${LOG_DIR}"
+
+OUTPUT_FILE="${OUTPUT_DIR}/${FLOOR}.txt"
+LOG_FILE="${LOG_DIR}/orb_slam3_${FLOOR}.log"
+
+echo "========================================" | tee "${LOG_FILE}"
+echo "ORB-SLAM3 Stereo - ${FLOOR}" | tee -a "${LOG_FILE}"
+echo "========================================" | tee -a "${LOG_FILE}"
+echo "Data: ${DATA_DIR}" | tee -a "${LOG_FILE}"
+echo "Output: ${OUTPUT_FILE}" | tee -a "${LOG_FILE}"
+echo "Started: $(date)" | tee -a "${LOG_FILE}"
+
+if [ ! -d "${DATA_DIR}" ]; then
+    echo "ERROR: Data directory not found: ${DATA_DIR}" | tee -a "${LOG_FILE}"
+    exit 1
+fi
+
+BAG_COUNT=$(ls -1 "${DATA_DIR}"/*.bag 2>/dev/null | wc -l)
+echo "Found ${BAG_COUNT} bag files" | tee -a "${LOG_FILE}"
+
+roscore &
+ROSCORE_PID=$!
+sleep 3
+
+> "${OUTPUT_FILE}"
+
+echo "Starting ORB-SLAM3 (loading vocabulary ~30s)..." | tee -a "${LOG_FILE}"
+rosrun orb_slam3_ros stereo_node \
+    _vocab_path:="${VOCAB_PATH}" \
+    _config_path:="${CONFIG_PATH}" \
+    _output_path:="${OUTPUT_FILE}" \
+    _left_topic:=/camera_array/cam1/image_raw \
+    _right_topic:=/camera_array/cam3/image_raw \
+    _use_viewer:=false \
+    2>&1 | tee -a "${LOG_FILE}" &
+SLAM_PID=$!
+
+sleep 35
+
+if ! kill -0 $SLAM_PID 2>/dev/null; then
+    echo "ERROR: ORB-SLAM3 crashed during init" | tee -a "${LOG_FILE}"
+    kill $ROSCORE_PID 2>/dev/null || true
+    exit 1
+fi
+
+echo "Playing bag files..." | tee -a "${LOG_FILE}"
+for bag in $(ls -1 "${DATA_DIR}"/*.bag | sort); do
+    echo "Playing: $(basename $bag)" | tee -a "${LOG_FILE}"
+    rosbag play "$bag" --clock \
+        --topics /camera_array/cam1/image_raw /camera_array/cam3/image_raw \
+        -r 0.5
+    sleep 2
+done
+
+echo "Finishing..." | tee -a "${LOG_FILE}"
+sleep 15
+
+rosnode kill /orb_slam3_stereo 2>/dev/null || true
+sleep 5
+kill $SLAM_PID 2>/dev/null || true
+kill $ROSCORE_PID 2>/dev/null || true
+
+if [ -f "${OUTPUT_FILE}" ]; then
+    POSE_COUNT=$(wc -l < "${OUTPUT_FILE}")
+    echo "========================================" | tee -a "${LOG_FILE}"
+    echo "COMPLETE: ${FLOOR} - ${POSE_COUNT} poses" | tee -a "${LOG_FILE}"
+    echo "========================================" | tee -a "${LOG_FILE}"
+else
+    echo "ERROR: No output generated!" | tee -a "${LOG_FILE}"
+    exit 1
+fi
+RUNFLOOR
+RUN chmod +x /root/run_orb_slam3_floor.sh
+
+# Create run all floors script using heredoc
+RUN cat << 'RUNALL' > /root/run_orb_slam3_all.sh
+#!/bin/bash
+set -e
+
+FLOORS=("5th_floor" "1st_floor" "4th_floor" "2nd_floor")
+
+echo "=========================================="
+echo "ORB-SLAM3 ISEC Full Benchmark"
+echo "=========================================="
+echo "Started: $(date)"
+
+for floor in "${FLOORS[@]}"; do
+    echo ""
+    echo "Processing: ${floor}"
+    /root/run_orb_slam3_floor.sh "${floor}"
+    sleep 5
+done
+
+echo ""
+echo "=========================================="
+echo "Complete! Results:"
+for floor in "${FLOORS[@]}"; do
+    FILE="/results/trajectories/orb_slam3/${floor}.txt"
+    if [ -f "$FILE" ]; then
+        echo "  ${floor}: $(wc -l < $FILE) poses"
+    else
+        echo "  ${floor}: FAILED"
+    fi
+done
+RUNALL
+RUN chmod +x /root/run_orb_slam3_all.sh
+
+WORKDIR /root
+ENV ROS_MASTER_URI=http://localhost:11311
+
+CMD ["/bin/bash"]

@@ -1,0 +1,59 @@
+# Dockerfile.lego-loam
+# LeGO-LOAM with Ouster OS-128 support
+
+FROM ros:melodic-perception
+
+LABEL maintainer="SLAM Benchmark Project"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y \
+    build-essential cmake git pkg-config \
+    libpcl-dev pcl-tools libeigen3-dev libopencv-dev \
+    libboost-all-dev libtbb-dev \
+    ros-melodic-cv-bridge ros-melodic-image-transport \
+    ros-melodic-pcl-ros ros-melodic-pcl-conversions \
+    ros-melodic-tf ros-melodic-tf2-ros \
+    ros-melodic-nav-msgs ros-melodic-sensor-msgs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build GTSAM 4.0.0-alpha2
+WORKDIR /opt
+RUN git clone --depth 1 --branch 4.0.0-alpha2 https://github.com/borglab/gtsam.git && \
+    cd gtsam && mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release \
+        -DGTSAM_BUILD_WITH_MARCH_NATIVE=OFF \
+        -DGTSAM_BUILD_TESTS=OFF \
+        -DGTSAM_BUILD_EXAMPLES_ALWAYS=OFF && \
+    make -j$(nproc) && make install && ldconfig && \
+    cd /opt && rm -rf gtsam
+
+RUN mkdir -p /catkin_ws/src
+WORKDIR /catkin_ws/src
+RUN git clone https://github.com/RobustFieldAutonomyLab/LeGO-LOAM.git
+
+# Configure for Ouster OS-128 in utility.h:
+# 1. Change topic from /velodyne_points to /ouster/points (THIS WAS MISSING!)
+# 2. useCloudRing = true (Ouster has ring field at offset 26)
+# 3. N_SCAN = 128, Horizon_SCAN = 1024
+# 4. Correct angular parameters for 45° vertical FOV
+RUN sed -i 's|/velodyne_points|/ouster/points|g' /catkin_ws/src/LeGO-LOAM/LeGO-LOAM/include/utility.h && \
+    sed -i 's/useCloudRing = true/useCloudRing = true/' /catkin_ws/src/LeGO-LOAM/LeGO-LOAM/include/utility.h && \
+    sed -i 's/N_SCAN = 16/N_SCAN = 128/' /catkin_ws/src/LeGO-LOAM/LeGO-LOAM/include/utility.h && \
+    sed -i 's/Horizon_SCAN = 1800/Horizon_SCAN = 1024/' /catkin_ws/src/LeGO-LOAM/LeGO-LOAM/include/utility.h && \
+    sed -i 's/ang_res_x = 0.2/ang_res_x = 0.3515625/' /catkin_ws/src/LeGO-LOAM/LeGO-LOAM/include/utility.h && \
+    sed -i 's/ang_res_y = 2.0/ang_res_y = 0.354331/' /catkin_ws/src/LeGO-LOAM/LeGO-LOAM/include/utility.h && \
+    sed -i 's/ang_bottom = 15.0+0.1/ang_bottom = 22.5/' /catkin_ws/src/LeGO-LOAM/LeGO-LOAM/include/utility.h && \
+    sed -i 's/groundScanInd = 7/groundScanInd = 30/' /catkin_ws/src/LeGO-LOAM/LeGO-LOAM/include/utility.h
+
+# Also update launch file for consistency
+RUN sed -i 's|/velodyne_points|/ouster/points|g' /catkin_ws/src/LeGO-LOAM/LeGO-LOAM/launch/run.launch
+
+# Build
+WORKDIR /catkin_ws
+RUN /bin/bash -c "source /opt/ros/melodic/setup.bash && catkin_make -DCMAKE_BUILD_TYPE=Release"
+
+RUN mkdir -p /data/ISEC /results /config
+WORKDIR /workspace
+
+CMD ["/bin/bash", "-c", "source /opt/ros/melodic/setup.bash && source /catkin_ws/devel/setup.bash && bash"]

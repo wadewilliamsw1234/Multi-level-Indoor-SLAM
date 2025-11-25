@@ -1,0 +1,17 @@
+# LeGO-LOAM Configuration for ISEC Dataset
+# Ouster OS-128 LiDAR Parameters
+
+# Sensor Configuration
+N_SCAN: 128
+Horizon_SCAN: 1024
+ang_res_x: 0.35156
+ang_res_y: 0.35156
+ang_bottom: 22.5
+groundScanInd: 50
+
+# Topics
+pointCloudTopic: "/ouster/points"
+imuTopic: "/vectornav/imu"
+
+# Loop Closure (disabled for benchmarking)
+loopClosureEnableFlag: false

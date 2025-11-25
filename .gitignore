@@ -1,0 +1,150 @@
+# ============================================
+# SLAM Benchmarking Project - .gitignore
+# ============================================
+
+# ============================================
+# Python
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# ============================================
+# Virtual Environments
+# ============================================
+venv/
+ENV/
+env/
+.venv/
+
+# ============================================
+# IDE / Editor
+# ============================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# ============================================
+# OS Generated
+# ============================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ============================================
+# ROS / Catkin
+# ============================================
+devel/
+logs/
+build/
+.catkin_workspace
+.catkin_tools/
+
+# ============================================
+# Docker
+# ============================================
+.docker/
+
+# ============================================
+# Results - Large/Generated Files
+# ============================================
+# Keep trajectory files (small, important results)
+# Keep figure files (documentation)
+# Keep metrics files (evaluation results)
+
+# Intermediate ROS bags (can be regenerated)
+results/*.bag
+
+# Log files (can be regenerated)
+results/logs/*.log
+
+# evo package output zips (can be regenerated)
+results/metrics/*.zip
+
+# Test/debug outputs
+results/test_*/
+
+# ============================================
+# Data - Large Dataset Files
+# ============================================
+# The ISEC dataset should NOT be committed (500GB+)
+data/
+*.bag
+
+# ============================================
+# Temporary / Quarantine
+# ============================================
+.quarantine/
+tmp/
+temp/
+*.tmp
+
+# ============================================
+# Credentials / Secrets
+# ============================================
+*.env
+.env.local
+.env.*.local
+secrets/
+credentials/
+
+# ============================================
+# Documentation Build
+# ============================================
+docs/_build/
+site/
+
+# ============================================
+# Jupyter Notebooks
+# ============================================
+.ipynb_checkpoints/
+*.ipynb
+
+# ============================================
+# Keep These (override ignores above)
+# ============================================
+# Trajectory results (small text files, important)
+!results/trajectories/**/*.txt
+
+# Figures (important for documentation)
+!results/figures/**/*.png
+
+# Evaluation metrics JSON (small, important)
+!results/metrics/*.json
+
+# Config files
+!config/**/*.yaml
+!config/**/*.json
