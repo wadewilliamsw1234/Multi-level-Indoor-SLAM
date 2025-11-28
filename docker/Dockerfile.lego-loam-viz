@@ -1,0 +1,71 @@
+# LeGO-LOAM with Foxglove visualization support
+# Based on existing LeGO-LOAM Dockerfile with rosbridge added
+
+FROM slam-benchmark/lego-loam:latest
+
+# Install rosbridge for Foxglove connection
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ros-melodic-rosbridge-server \
+    ros-melodic-tf2-web-republisher \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create visualization launch script
+RUN cat << 'VIZLAUNCH' > /root/run_lego_loam_viz.sh
+#!/bin/bash
+set -e
+
+FLOOR=${1:-5th_floor}
+DATA_DIR="/data/ISEC/${FLOOR}"
+
+source /opt/ros/melodic/setup.bash
+source /catkin_ws/devel/setup.bash
+
+echo "============================================"
+echo "LeGO-LOAM with Foxglove Visualization"
+echo "Floor: ${FLOOR}"
+echo "============================================"
+echo ""
+echo "Connect Foxglove Studio to: ws://localhost:9090"
+echo ""
+
+# Start roscore
+roscore &
+sleep 3
+
+# Start rosbridge for Foxglove connection
+roslaunch rosbridge_server rosbridge_websocket.launch port:=9090 &
+sleep 2
+
+# Start TF2 web republisher (helps Foxglove with transforms)
+rosrun tf2_web_republisher tf2_web_republisher &
+sleep 1
+
+# Start LeGO-LOAM nodes
+echo "Starting LeGO-LOAM..."
+roslaunch lego_loam run.launch &
+sleep 5
+
+echo ""
+echo "============================================"
+echo "Ready! Connect Foxglove to ws://localhost:9090"
+echo "Then press ENTER to start bag playback..."
+echo "============================================"
+read -p ""
+
+# Play bags
+echo "Playing bag files..."
+for bag in $(ls -1 "${DATA_DIR}"/*.bag | sort); do
+    echo "Playing: $(basename $bag)"
+    rosbag play "$bag" --clock -r 0.5
+    sleep 1
+done
+
+echo ""
+echo "Playback complete. Press Ctrl+C to exit."
+wait
+VIZLAUNCH
+RUN chmod +x /root/run_lego_loam_viz.sh
+
+EXPOSE 9090
+
+CMD ["/bin/bash"]
