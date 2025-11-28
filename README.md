@@ -306,3 +306,60 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 **Status**: Active Development | **Last Updated**: November 2025
+
+## 🖥️ Real-Time Visualization
+
+This project includes VNC-based visualization for watching ORB-SLAM3 process data in real-time.
+
+### Building the Visualization Image
+```bash
+# First, ensure the base ORB-SLAM3 image is built
+docker build -t slam-benchmark/orb-slam3:latest -f docker/Dockerfile.orb-slam3 .
+
+# Then build the visualization image
+docker build -t slam-benchmark/orb-slam3-viz:latest -f docker/Dockerfile.orb-slam3-viz .
+```
+
+### Running Visualization
+```bash
+# Start the visualization container
+docker run --rm -it \
+    -p 5900:5900 \
+    -v ~/Dev/shared/datasets/ISEC:/data/ISEC:ro \
+    -v $(pwd)/results:/results \
+    -v $(pwd)/config:/config:ro \
+    slam-benchmark/orb-slam3-viz:latest
+
+# In another terminal, connect via VNC
+vncviewer localhost:5900
+```
+
+### Inside the Container
+
+Once connected via VNC, run ORB-SLAM3 with visualization:
+```bash
+/root/run_orb_slam3_viewer.sh 5th_floor 0.3 180
+```
+
+Arguments:
+- `floor`: Dataset floor (5th_floor, 1st_floor, 4th_floor, 2nd_floor)
+- `rate`: Playback speed multiplier (0.3 = 30% speed, good for visualization)
+- `duration`: Maximum playback duration in seconds
+
+### What You'll See
+
+Two windows appear side-by-side (1800x1350 each):
+
+**Map Viewer (left):**
+- Red dots: 3D map points triangulated from stereo
+- Green rectangle: Current camera pose
+- Blue line: Trajectory path traveled
+
+**Current Frame (right):**
+- Live camera feed from left stereo camera
+- Green dots: ORB features being tracked
+- Status bar: Map count, keyframes, map points, matches
+
+### VNC Desktop Size
+
+The VNC desktop is configured to 3600x1350 pixels to fit both windows side-by-side perfectly.
