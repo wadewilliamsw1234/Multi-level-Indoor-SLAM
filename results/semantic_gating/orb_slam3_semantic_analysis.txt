@@ -1,0 +1,59 @@
+======================================================================
+ORB-SLAM3 SEMANTIC GATING ANALYSIS
+======================================================================
+
+TRAJECTORY SUMMARY
+--------------------------------------------------
+  Total poses: 19163
+  Sequences loaded: 4
+  Total duration: 1473.8 seconds
+
+FLOOR DISTRIBUTION
+--------------------------------------------------
+  Floor 1: 2548 poses (13.3%)
+  Floor 2: 5314 poses (27.7%)
+  Floor 4: 2616 poses (13.7%)
+  Floor 5: 8685 poses (45.3%)
+
+LOOP CLOSURE ANALYSIS (Simulated)
+--------------------------------------------------
+  Total candidates detected: 5110618
+  Same-floor (valid): 1498091
+  Cross-floor (perceptual aliasing): 3612527
+  Cross-floor rate: 70.7%
+
+IMPACT ASSESSMENT
+--------------------------------------------------
+  Without semantic gating:
+    - 3612527 false loop closures would occur
+    - These would cause trajectory collapse between floors
+    - Leads to catastrophic drift and map corruption
+
+  With floor-based semantic gating:
+    - 3612527 false positives rejected
+    - 1498091 true loop closures preserved
+    - Multi-floor trajectory integrity maintained
+
+EXAMPLE CROSS-FLOOR FALSE MATCHES
+--------------------------------------------------
+  1. Frame 0 (Floor 5) matched Frame 13671 (Floor 4)
+      Spatial distance: 1.89m (similar enough to match)
+      REJECTED: Different floors
+  2. Frame 0 (Floor 5) matched Frame 13670 (Floor 4)
+      Spatial distance: 1.92m (similar enough to match)
+      REJECTED: Different floors
+  3. Frame 0 (Floor 5) matched Frame 13669 (Floor 4)
+      Spatial distance: 1.94m (similar enough to match)
+      REJECTED: Different floors
+  4. Frame 0 (Floor 5) matched Frame 13668 (Floor 4)
+      Spatial distance: 1.97m (similar enough to match)
+      REJECTED: Different floors
+  5. Frame 0 (Floor 5) matched Frame 13672 (Floor 4)
+      Spatial distance: 1.87m (similar enough to match)
+      REJECTED: Different floors
+
+======================================================================
+CONCLUSION: Floor-based semantic gating prevents perceptual aliasing
+            in multi-floor environments by rejecting cross-floor
+            loop closure candidates that would corrupt the trajectory.
+======================================================================

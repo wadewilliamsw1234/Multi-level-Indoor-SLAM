@@ -1,0 +1,244 @@
+{
+  "lego_loam": {
+    "5th_floor": {
+      "poses": 1095,
+      "length": 187.1496609880676,
+      "drift": 0.7101438151599998,
+      "drift_pct": 0.3794523652411412,
+      "expected": 187,
+      "valid": true,
+      "paper": 0.395,
+      "status": "ok"
+    },
+    "1st_floor": {
+      "poses": 319,
+      "length": 73.71678618883666,
+      "drift": 0.34946726648571824,
+      "drift_pct": 0.47406742012667935,
+      "expected": 65,
+      "valid": true,
+      "paper": 0.256,
+      "status": "ok"
+    },
+    "4th_floor": {
+      "poses": 327,
+      "length": 66.15925054219142,
+      "drift": 0.15401547430696697,
+      "drift_pct": 0.2327950710517004,
+      "expected": 66,
+      "valid": true,
+      "paper": 0.789,
+      "status": "ok"
+    },
+    "2nd_floor": {
+      "poses": 665,
+      "length": 134.92955485994958,
+      "drift": 0.14915794210165276,
+      "drift_pct": 0.11054504867852827,
+      "expected": 128,
+      "valid": true,
+      "paper": 0.286,
+      "status": "ok"
+    }
+  },
+  "orb_slam3": {
+    "5th_floor": {
+      "poses": 7272,
+      "length": 139.51931652654085,
+      "drift": 0.01842454611160484,
+      "drift_pct": 0.013205731342656003,
+      "expected": 187,
+      "valid": true,
+      "paper": 0.516,
+      "ate_vs_lego": {
+        "rmse": 10.459442581486625,
+        "mean": 7.104330801079759,
+        "max": 32.327959538620696,
+        "median": 3.9580351168261556
+      },
+      "num_matched": 7272,
+      "status": "ok"
+    },
+    "1st_floor": {
+      "poses": 1841,
+      "length": 26.867030993934197,
+      "drift": 8.469367058426185,
+      "drift_pct": 31.523271255161482,
+      "expected": 65,
+      "valid": true,
+      "paper": 0.949,
+      "ate_vs_lego": {
+        "rmse": 8.82073118035567,
+        "mean": 8.196231282634443,
+        "max": 15.52560098268488,
+        "median": 8.939340146651983
+      },
+      "num_matched": 1841,
+      "status": "ok"
+    },
+    "4th_floor": {
+      "poses": 2616,
+      "length": 51.09914378448955,
+      "drift": 0.3244657788327814,
+      "drift_pct": 0.6349730245994231,
+      "expected": 66,
+      "valid": true,
+      "paper": 0.483,
+      "ate_vs_lego": {
+        "rmse": 1.9640946575982887,
+        "mean": 1.8159314965067195,
+        "max": 3.94075081567059,
+        "median": 1.6749370719604764
+      },
+      "num_matched": 2616,
+      "status": "ok"
+    },
+    "2nd_floor": {
+      "poses": 5252,
+      "length": 105.78462622889305,
+      "drift": 0.693497714875314,
+      "drift_pct": 0.6555751431921195,
+      "expected": 128,
+      "valid": true,
+      "paper": 0.31,
+      "ate_vs_lego": {
+        "rmse": 5.535147419797769,
+        "mean": 4.933404927250021,
+        "max": 12.983761173102401,
+        "median": 4.324180421888189
+      },
+      "num_matched": 5252,
+      "status": "ok"
+    }
+  },
+  "basalt": {
+    "5th_floor": {
+      "poses": 8757,
+      "length": 847319.8628269958,
+      "drift": 803949.3669895296,
+      "drift_pct": 94.88144941005336,
+      "expected": 187,
+      "valid": false,
+      "paper": 1.214,
+      "status": "diverged (847320m vs 187m expected)"
+    },
+    "1st_floor": {
+      "poses": 2551,
+      "length": 18.043100827966466,
+      "drift": 4.628543691438609,
+      "drift_pct": 25.652706458661772,
+      "expected": 65,
+      "valid": true,
+      "paper": 4.043,
+      "ate_vs_lego": {
+        "rmse": 8.766965129038178,
+        "mean": 8.53980355140546,
+        "max": 13.581683439623108,
+        "median": 8.518378159109963
+      },
+      "num_matched": 2551,
+      "status": "ok"
+    },
+    "4th_floor": {
+      "poses": 2620,
+      "length": 77899.52917815893,
+      "drift": 73499.48489261064,
+      "drift_pct": 94.35164200352835,
+      "expected": 66,
+      "valid": false,
+      "paper": 1.809,
+      "status": "diverged (77900m vs 66m expected)"
+    },
+    "2nd_floor": {
+      "poses": 5320,
+      "length": 103.41636783843336,
+      "drift": 79.59605191927886,
+      "drift_pct": 76.96659008913483,
+      "expected": 128,
+      "valid": true,
+      "paper": 3.054,
+      "ate_vs_lego": {
+        "rmse": 12.07219756452606,
+        "mean": 10.247617755050713,
+        "max": 21.8767501983824,
+        "median": 8.45306155399566
+      },
+      "num_matched": 5320,
+      "status": "ok"
+    }
+  },
+  "droid_slam": {
+    "5th_floor": {
+      "poses": 876,
+      "length": 59.17758976552648,
+      "drift": 0.19441683250171524,
+      "drift_pct": 0.32853117754885564,
+      "expected": 187,
+      "valid": true,
+      "paper": 0.441,
+      "scale": 3.124805967199222,
+      "ate_vs_lego": {
+        "rmse": 0.24464371133613372,
+        "mean": 0.22541575541997297,
+        "max": 0.7043163647739252,
+        "median": 0.21883344198163474
+      },
+      "num_matched": 876,
+      "status": "ok"
+    },
+    "1st_floor": {
+      "poses": 256,
+      "length": 23.419860490452656,
+      "drift": 0.0895590122433248,
+      "drift_pct": 0.3824062584823442,
+      "expected": 65,
+      "valid": true,
+      "paper": 0.666,
+      "scale": 3.132510967793353,
+      "ate_vs_lego": {
+        "rmse": 0.1553900167852329,
+        "mean": 0.1351292947718547,
+        "max": 0.3628098251147826,
+        "median": 0.12443768623556714
+      },
+      "num_matched": 256,
+      "status": "ok"
+    },
+    "4th_floor": {
+      "poses": 262,
+      "length": 21.0827474576555,
+      "drift": 0.0206253376457211,
+      "drift_pct": 0.09783040700528664,
+      "expected": 66,
+      "valid": true,
+      "paper": 0.112,
+      "scale": 3.1240896658320243,
+      "ate_vs_lego": {
+        "rmse": 0.22536411207109944,
+        "mean": 0.20476411347503964,
+        "max": 0.5068911706984305,
+        "median": 0.18068115052682915
+      },
+      "num_matched": 262,
+      "status": "ok"
+    },
+    "2nd_floor": {
+      "poses": 532,
+      "length": 43.67094828214347,
+      "drift": 1.1239116091521608,
+      "drift_pct": 2.5735910333133636,
+      "expected": 128,
+      "valid": true,
+      "paper": 0.214,
+      "scale": 3.0881717304421143,
+      "ate_vs_lego": {
+        "rmse": 0.6525960452651203,
+        "mean": 0.3683993603370328,
+        "max": 3.6759986865515,
+        "median": 0.2429979112669968
+      },
+      "num_matched": 532,
+      "status": "ok"
+    }
+  }
+}

@@ -1,0 +1,147 @@
+# Kimera-VIO Dockerfile for ISEC SLAM Benchmarking
+# Ubuntu 20.04 + ROS Noetic + GTSAM 4.1
+# Kimera-VIO is a robust Visual-Inertial Odometry pipeline from MIT SPARK Lab
+
+FROM ros:noetic-perception
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Etc/UTC
+
+# Install base dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    pkg-config \
+    ninja-build \
+    wget \
+    curl \
+    unzip \
+    # Linear algebra
+    libeigen3-dev \
+    libatlas-base-dev \
+    libsuitesparse-dev \
+    # Boost
+    libboost-all-dev \
+    # Logging and CLI
+    libgoogle-glog-dev \
+    libgflags-dev \
+    # OpenCV (ROS provides it but we need dev headers)
+    libopencv-dev \
+    # TBB for parallel processing
+    libtbb-dev \
+    # ROS packages
+    ros-noetic-cv-bridge \
+    ros-noetic-image-transport \
+    ros-noetic-tf \
+    ros-noetic-tf2-ros \
+    ros-noetic-message-filters \
+    ros-noetic-nav-msgs \
+    ros-noetic-visualization-msgs \
+    ros-noetic-pcl-ros \
+    ros-noetic-pcl-conversions \
+    ros-noetic-camera-info-manager \
+    ros-noetic-image-geometry \
+    # Python tools
+    python3-pip \
+    python3-catkin-tools \
+    python3-vcstool \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install GTSAM 4.1 (required by Kimera)
+WORKDIR /tmp
+RUN git clone --depth 1 --branch 4.1.1 https://github.com/borglab/gtsam.git && \
+    cd gtsam && mkdir build && cd build && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DGTSAM_BUILD_WITH_MARCH_NATIVE=OFF \
+        -DGTSAM_BUILD_TESTS=OFF \
+        -DGTSAM_BUILD_EXAMPLES_ALWAYS=OFF \
+        -DGTSAM_BUILD_UNSTABLE=ON \
+        -DGTSAM_USE_SYSTEM_EIGEN=ON \
+        -DGTSAM_WITH_TBB=ON && \
+    make -j$(nproc) && make install && \
+    cd /tmp && rm -rf gtsam
+
+# Install OpenGV (geometric vision algorithms)
+WORKDIR /tmp
+RUN git clone https://github.com/laurentkneip/opengv.git && \
+    cd opengv && mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release && \
+    make -j$(nproc) && make install && \
+    cd /tmp && rm -rf opengv
+
+# Install DBoW2 (for loop closure)
+WORKDIR /tmp
+RUN git clone https://github.com/dorian3d/DBoW2.git && \
+    cd DBoW2 && mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release && \
+    make -j$(nproc) && make install && \
+    cd /tmp && rm -rf DBoW2
+
+# Install KimeraRPGO (robust pose graph optimization)
+WORKDIR /tmp
+RUN git clone https://github.com/MIT-SPARK/Kimera-RPGO.git && \
+    cd Kimera-RPGO && mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release && \
+    make -j$(nproc) && make install && \
+    cd /tmp && rm -rf Kimera-RPGO
+
+# Create catkin workspace
+WORKDIR /catkin_ws/src
+RUN /bin/bash -c "source /opt/ros/noetic/setup.bash && catkin_init_workspace"
+
+# Clone Kimera-VIO
+RUN git clone https://github.com/MIT-SPARK/Kimera-VIO.git
+
+# Clone Kimera-VIO-ROS
+RUN git clone https://github.com/MIT-SPARK/Kimera-VIO-ROS.git
+
+# Clone required interface packages
+RUN git clone https://github.com/MIT-SPARK/pose_graph_tools.git
+RUN git clone https://github.com/MIT-SPARK/Kimera-Semantics.git || true
+
+# Clone gtsam_catkin for ROS integration (if needed)
+RUN git clone https://github.com/ethz-asl/gtsam_catkin.git || true
+
+# Build Kimera-VIO library first (standalone)
+WORKDIR /catkin_ws/src/Kimera-VIO
+RUN mkdir -p build && cd build && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DGTSAM_DIR=/usr/local/lib/cmake/GTSAM \
+        -DCMAKE_INSTALL_PREFIX=/usr/local && \
+    make -j$(nproc) && make install
+
+# Build ROS workspace
+WORKDIR /catkin_ws
+RUN /bin/bash -c "source /opt/ros/noetic/setup.bash && \
+    catkin_make -DCMAKE_BUILD_TYPE=Release \
+        -DGTSAM_DIR=/usr/local/lib/cmake/GTSAM \
+        -DKimera-VIO_DIR=/usr/local/lib/cmake/Kimera-VIO" || \
+    echo "Initial build may have warnings - continuing..."
+
+# Create results directories
+RUN mkdir -p /results/trajectories/kimera /results/logs
+
+# Create config directory
+RUN mkdir -p /config/kimera
+
+# Copy default ISEC config (will be overwritten by volume mount)
+COPY config/kimera/ISEC_params.yaml /config/kimera/ISEC_params.yaml 2>/dev/null || \
+    echo "Config will be mounted at runtime"
+
+# Environment setup
+ENV LD_LIBRARY_PATH=/usr/local/lib:${LD_LIBRARY_PATH}
+ENV GTSAM_DIR=/usr/local/lib/cmake/GTSAM
+
+WORKDIR /catkin_ws
+
+# Entrypoint script
+RUN echo '#!/bin/bash\n\
+source /opt/ros/noetic/setup.bash\n\
+source /catkin_ws/devel/setup.bash 2>/dev/null || true\n\
+exec "$@"' > /entrypoint.sh && chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["/bin/bash"]

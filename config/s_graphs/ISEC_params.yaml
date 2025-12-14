@@ -1,0 +1,374 @@
+# S-Graphs 2.0 Configuration for ISEC Multi-Floor Dataset
+# ========================================================
+# Hierarchical SLAM with Floor-Level Factor Graph Constraints
+#
+# S-Graphs Factor Graph Hierarchy:
+#   Level 0: Keyframes (pose nodes)
+#   Level 1: Walls (plane factors)
+#   Level 2: Rooms (spatial clustering)
+#   Level 3: Floors (vertical segmentation)
+#
+# This is the ONLY algorithm specifically designed for multi-floor SLAM
+# with floor-level constraints built into the optimization.
+#
+# Sensors:
+#   - Ouster OS-128: 128-channel LiDAR at 10Hz
+#   - VectorNav VN-100: IMU at 400Hz
+#
+# Author: Wade Williams
+# Course: EECE5554 Robotic Sensing and Navigation
+
+# =============================================================================
+# SENSOR CONFIGURATION
+# =============================================================================
+Sensors:
+  # LiDAR (Ouster OS-128)
+  lidar:
+    topic: "/ouster/points"
+    frame_id: "os_sensor"
+    num_channels: 128
+    horizontal_resolution: 1024
+    vertical_fov: 45.0  # degrees
+    min_range: 0.5
+    max_range: 100.0
+    # Point cloud downsampling
+    downsample_resolution: 0.1  # meters
+
+  # IMU (VectorNav VN-100)
+  imu:
+    topic: "/vectornav/IMU"
+    frame_id: "imu_link"
+    rate: 400.0
+    # Use IMU for floor transition detection
+    use_for_floor_detection: true
+
+# =============================================================================
+# SCAN MATCHING PARAMETERS
+# =============================================================================
+Registration:
+  # Method: NDT_OMP, FAST_GICP, FAST_VGICP
+  method: "FAST_GICP"
+
+  # NDT parameters
+  ndt_resolution: 1.0
+  ndt_step_size: 0.1
+
+  # GICP parameters
+  gicp_correspondence_distance: 1.0
+  gicp_max_iterations: 64
+
+  # Convergence
+  transformation_epsilon: 0.01
+  max_iterations: 64
+
+  # Fitness score threshold for accepting registration
+  fitness_score_threshold: 0.3
+
+# =============================================================================
+# KEYFRAME SELECTION
+# =============================================================================
+Keyframes:
+  # Minimum translation for new keyframe (meters)
+  delta_translation: 1.0
+
+  # Minimum rotation for new keyframe (radians)
+  delta_rotation: 0.5
+
+  # Maximum time between keyframes (seconds)
+  max_time_interval: 5.0
+
+  # Minimum time between keyframes (seconds)
+  min_time_interval: 0.5
+
+# =============================================================================
+# FLOOR DETECTION (CRITICAL FOR MULTI-FLOOR)
+# =============================================================================
+FloorDetection:
+  # Enable floor-level semantic tracking
+  enable: true
+
+  # Floor height (meters) - ISEC building
+  floor_height: 3.5
+
+  # Detection method: 'plane', 'imu', 'plane_imu_fusion'
+  # 'plane_imu_fusion' combines LiDAR ground plane with IMU z-acceleration
+  method: "plane_imu_fusion"
+
+  # =========================================================================
+  # LiDAR Ground Plane Detection
+  # =========================================================================
+  plane:
+    # RANSAC iterations for ground plane fitting
+    ransac_iterations: 100
+
+    # RANSAC distance threshold (meters)
+    ransac_threshold: 0.15
+
+    # Minimum points for valid plane
+    min_points: 500
+
+    # Maximum ground slope (degrees)
+    max_slope: 10.0
+
+    # Height range for ground points (meters above sensor)
+    height_min: -0.5
+    height_max: 0.5
+
+  # =========================================================================
+  # IMU-Based Floor Transition Detection
+  # =========================================================================
+  imu:
+    # Z-acceleration threshold for elevator detection (m/s^2)
+    elevator_accel_threshold: 0.5
+
+    # Minimum elevator event duration (seconds)
+    min_elevator_duration: 3.0
+
+    # Z-acceleration variance threshold for stair detection
+    stair_variance_threshold: 0.3
+
+    # Window size for IMU analysis (samples)
+    analysis_window: 200
+
+  # =========================================================================
+  # Floor State Machine
+  # =========================================================================
+  state_machine:
+    # Minimum confidence for floor transition
+    transition_confidence: 0.8
+
+    # Hysteresis for floor assignment (meters)
+    hysteresis: 0.5
+
+    # Initial floor (0-indexed)
+    initial_floor: 0
+
+# =============================================================================
+# WALL DETECTION
+# =============================================================================
+WallDetection:
+  # Enable wall plane extraction
+  enable: true
+
+  # Minimum points for wall plane
+  min_points: 100
+
+  # RANSAC parameters for wall fitting
+  ransac_iterations: 50
+  ransac_threshold: 0.1
+
+  # Wall orientation constraints (degrees from vertical)
+  max_tilt_from_vertical: 15.0
+
+  # Minimum wall height (meters)
+  min_height: 1.5
+
+  # Wall merging parameters
+  merge_distance_threshold: 0.5
+  merge_angle_threshold: 10.0  # degrees
+
+# =============================================================================
+# ROOM SEGMENTATION
+# =============================================================================
+RoomSegmentation:
+  # Enable room-level semantic segmentation
+  enable: true
+
+  # Segmentation method: 'euclidean', 'region_growing', 'voronoi'
+  method: "euclidean"
+
+  # Euclidean clustering parameters
+  cluster_tolerance: 2.0  # meters
+  min_cluster_size: 50
+  max_cluster_size: 10000
+
+  # Room boundary detection
+  detect_boundaries: true
+  boundary_resolution: 0.5
+
+# =============================================================================
+# STAIRWAY DETECTION
+# =============================================================================
+StairwayDetection:
+  # Enable stairway detection for floor transitions
+  enable: true
+
+  # Step height threshold (meters)
+  step_height: 0.15
+
+  # Minimum number of steps to confirm stairway
+  min_steps: 3
+
+  # Correlation with IMU pitch angle
+  use_imu_pitch: true
+  pitch_threshold: 5.0  # degrees
+
+# =============================================================================
+# LOOP CLOSURE
+# =============================================================================
+LoopClosure:
+  # Enable loop closure detection
+  enable: true
+
+  # Minimum distance traveled before considering loop (meters)
+  min_loop_distance: 10.0
+
+  # Maximum distance for loop closure candidates (meters)
+  max_candidate_distance: 30.0
+
+  # ICP fitness threshold for accepting loop
+  fitness_threshold: 0.3
+
+  # Minimum inliers for geometric verification
+  min_inliers: 100
+
+  # =========================================================================
+  # FLOOR-BASED LOOP CLOSURE GATING (KEY FEATURE)
+  # =========================================================================
+  floor_gating:
+    # Enable floor-based rejection of loop closure candidates
+    enable: true
+
+    # Strictly reject cross-floor loop closures
+    reject_cross_floor: true
+
+    # Allow soft constraints for floors detected with low confidence
+    soft_constraint_threshold: 0.6
+
+    # Prior factor weight for floor consistency
+    floor_prior_weight: 100.0
+
+# =============================================================================
+# HIERARCHICAL OPTIMIZATION
+# =============================================================================
+Optimization:
+  # Optimization mode: 'local', 'global', 'hierarchical'
+  # 'hierarchical' is the key innovation of S-Graphs
+  mode: "hierarchical"
+
+  # =========================================================================
+  # Local Optimization (Recent keyframes)
+  # =========================================================================
+  local:
+    # Window size (number of keyframes)
+    window_size: 10
+
+    # Optimization frequency (every N keyframes)
+    frequency: 5
+
+    # Maximum iterations
+    max_iterations: 10
+
+  # =========================================================================
+  # Floor-Global Optimization (Current floor only)
+  # =========================================================================
+  floor_global:
+    # Enable floor-level optimization
+    enable: true
+
+    # Optimization frequency (every N keyframes)
+    frequency: 20
+
+    # Include wall constraints
+    use_wall_constraints: true
+
+    # Include room constraints
+    use_room_constraints: true
+
+    # Maximum iterations
+    max_iterations: 20
+
+  # =========================================================================
+  # Room-Local Optimization
+  # =========================================================================
+  room_local:
+    # Enable room-level optimization
+    enable: true
+
+    # Triggered when entering/exiting rooms
+    trigger_on_room_change: true
+
+  # =========================================================================
+  # Global Optimization (All floors)
+  # =========================================================================
+  global:
+    # Frequency (every N keyframes) - less frequent due to cost
+    frequency: 100
+
+    # Maximum iterations
+    max_iterations: 50
+
+    # Use robust kernel for outlier rejection
+    use_robust_kernel: true
+    robust_kernel_delta: 1.0
+
+  # =========================================================================
+  # Factor Graph Weights
+  # =========================================================================
+  weights:
+    # Odometry factors
+    odometry_translation: 1.0
+    odometry_rotation: 1.0
+
+    # Loop closure factors
+    loop_closure: 0.5
+
+    # Wall plane factors
+    wall_plane: 10.0
+
+    # Room boundary factors
+    room_boundary: 5.0
+
+    # Floor constraint factors (HIGH WEIGHT for multi-floor)
+    floor_constraint: 100.0
+
+    # IMU factors
+    imu_preintegration: 0.1
+
+# =============================================================================
+# OUTPUT CONFIGURATION
+# =============================================================================
+Output:
+  # Trajectory format: 'TUM', 'KITTI', 'both'
+  trajectory_format: "TUM"
+
+  # Output directory
+  trajectory_path: "/results/trajectories/s_graphs/"
+
+  # Save additional outputs
+  save_map: false
+  save_graph: true
+  save_floor_labels: true
+
+  # Graph output path
+  graph_path: "/results/s_graphs/graphs/"
+
+# =============================================================================
+# VISUALIZATION
+# =============================================================================
+Visualization:
+  # Enable RViz visualization
+  enable: false
+
+  # Publish markers
+  publish_keyframes: true
+  publish_walls: true
+  publish_rooms: true
+  publish_floors: true
+
+  # Marker update rate (Hz)
+  update_rate: 1.0
+
+# =============================================================================
+# DEBUG & LOGGING
+# =============================================================================
+Debug:
+  # Verbosity: 0=Error, 1=Warning, 2=Info, 3=Debug
+  verbosity: 2
+
+  # Log to file
+  log_to_file: true
+  log_path: "/results/logs/s_graphs/"
+
+  # Save intermediate results
+  save_intermediates: false

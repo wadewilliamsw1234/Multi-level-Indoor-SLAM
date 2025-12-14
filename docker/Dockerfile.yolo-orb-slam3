@@ -1,0 +1,572 @@
+# YOLOv8-ORB-SLAM3: Dynamic Object Filtering for Visual SLAM
+# ===========================================================
+# Extends ORB-SLAM3 with YOLOv8 object detection to filter
+# features on dynamic objects (people, vehicles) before tracking.
+#
+# Reference: https://github.com/Glencsa/YOLOv8-ORB-SLAM3
+#
+# Features:
+# - Real-time YOLOv8-nano detection (~150 FPS on RTX 3000)
+# - Dynamic object masking before feature extraction
+# - Improved trajectory smoothness in crowded environments
+#
+# Author: Wade Williams
+# Course: EECE5554 Robotic Sensing and Navigation
+
+FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    wget \
+    curl \
+    unzip \
+    pkg-config \
+    libeigen3-dev \
+    libopencv-dev \
+    libglew-dev \
+    libboost-all-dev \
+    libssl-dev \
+    python3-pip \
+    python3-dev \
+    libepoxy-dev \
+    libgl1-mesa-dev \
+    libwayland-dev \
+    libxkbcommon-dev \
+    wayland-protocols \
+    libegl1-mesa-dev \
+    libpng-dev \
+    libjpeg-dev \
+    libtiff-dev \
+    ffmpeg \
+    libavcodec-dev \
+    libavutil-dev \
+    libavformat-dev \
+    libswscale-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install ROS Noetic
+RUN sh -c 'echo "deb http://packages.ros.org/ros/ubuntu focal main" > /etc/apt/sources.list.d/ros-latest.list' && \
+    curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | apt-key add - && \
+    apt-get update && apt-get install -y \
+    ros-noetic-ros-base \
+    ros-noetic-cv-bridge \
+    ros-noetic-image-transport \
+    ros-noetic-message-filters \
+    ros-noetic-tf \
+    python3-rosdep \
+    python3-rosinstall \
+    python3-catkin-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+# Initialize rosdep
+RUN rosdep init && rosdep update
+
+# Install Python dependencies for YOLOv8
+RUN pip3 install --upgrade pip && \
+    pip3 install \
+    numpy \
+    opencv-python \
+    torch==2.0.1+cu118 \
+    torchvision==0.15.2+cu118 \
+    --index-url https://download.pytorch.org/whl/cu118
+
+# Install Ultralytics YOLOv8
+RUN pip3 install ultralytics
+
+# Download YOLOv8 nano model (smallest, fastest)
+RUN python3 -c "from ultralytics import YOLO; YOLO('yolov8n.pt')"
+
+WORKDIR /opt
+
+# Install Pangolin v0.6
+RUN git clone https://github.com/stevenlovegrove/Pangolin.git && \
+    cd Pangolin && \
+    git checkout v0.6 && \
+    git submodule update --init --recursive && \
+    mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release \
+             -DBUILD_TESTS=OFF \
+             -DBUILD_EXAMPLES=OFF && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig && \
+    cd /opt && rm -rf Pangolin
+
+# Clone ORB-SLAM3
+RUN git clone https://github.com/UZ-SLAMLab/ORB_SLAM3.git
+
+WORKDIR /opt/ORB_SLAM3
+
+# Fix CMakeLists.txt for OpenCV 4.x compatibility
+RUN sed -i 's/find_package(OpenCV 4.4)/find_package(OpenCV 4)/g' CMakeLists.txt && \
+    sed -i 's/find_package(OpenCV 3)/find_package(OpenCV 4)/g' CMakeLists.txt
+
+# Fix for C++14 compatibility
+RUN sed -i 's/++11/++14/g' CMakeLists.txt && \
+    sed -i 's/++11/++14/g' Thirdparty/DBoW2/CMakeLists.txt && \
+    sed -i 's/++11/++14/g' Thirdparty/g2o/CMakeLists.txt
+
+# Build Thirdparty libraries
+RUN cd Thirdparty/DBoW2 && \
+    mkdir -p build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release && \
+    make -j$(nproc)
+
+RUN cd Thirdparty/g2o && \
+    mkdir -p build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release && \
+    make -j$(nproc)
+
+# Uncompress vocabulary
+RUN cd Vocabulary && tar -xf ORBvoc.txt.tar.gz
+
+# Build ORB-SLAM3 main library
+RUN mkdir -p build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release && \
+    make -j$(nproc)
+
+# Create catkin workspace
+WORKDIR /root/catkin_ws/src
+RUN /bin/bash -c "source /opt/ros/noetic/setup.bash && catkin_init_workspace"
+
+# Create YOLOv8-ORB-SLAM3 ROS package
+RUN mkdir -p /root/catkin_ws/src/yolo_orb_slam3_ros/src
+RUN mkdir -p /root/catkin_ws/src/yolo_orb_slam3_ros/scripts
+
+# Create package.xml
+RUN cat << 'PACKAGEXML' > /root/catkin_ws/src/yolo_orb_slam3_ros/package.xml
+<?xml version="1.0"?>
+<package format="2">
+  <name>yolo_orb_slam3_ros</name>
+  <version>1.0.0</version>
+  <description>YOLOv8-ORB-SLAM3 with dynamic object filtering</description>
+  <maintainer email="user@example.com">User</maintainer>
+  <license>GPLv3</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>rospy</build_depend>
+  <build_depend>std_msgs</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>cv_bridge</build_depend>
+  <build_depend>image_transport</build_depend>
+  <build_depend>tf</build_depend>
+  <build_depend>message_filters</build_depend>
+  <exec_depend>roscpp</exec_depend>
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>image_transport</exec_depend>
+  <exec_depend>tf</exec_depend>
+  <exec_depend>message_filters</exec_depend>
+</package>
+PACKAGEXML
+
+# Create CMakeLists.txt
+RUN cat << 'CMAKELISTS' > /root/catkin_ws/src/yolo_orb_slam3_ros/CMakeLists.txt
+cmake_minimum_required(VERSION 3.0)
+project(yolo_orb_slam3_ros)
+
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+find_package(catkin REQUIRED COMPONENTS
+  roscpp
+  rospy
+  std_msgs
+  sensor_msgs
+  cv_bridge
+  image_transport
+  tf
+  message_filters
+)
+
+find_package(OpenCV 4 REQUIRED)
+find_package(Eigen3 REQUIRED)
+find_package(Pangolin REQUIRED)
+
+catkin_package()
+
+include_directories(
+  ${catkin_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
+  ${EIGEN3_INCLUDE_DIR}
+  ${Pangolin_INCLUDE_DIRS}
+  /opt/ORB_SLAM3
+  /opt/ORB_SLAM3/include
+  /opt/ORB_SLAM3/include/CameraModels
+  /opt/ORB_SLAM3/Thirdparty/Sophus
+)
+
+set(ORB_SLAM3_LIBS
+  /opt/ORB_SLAM3/lib/libORB_SLAM3.so
+  ${OpenCV_LIBS}
+  ${EIGEN3_LIBS}
+  ${Pangolin_LIBRARIES}
+  -lboost_serialization
+  -lcrypto
+)
+
+add_executable(yolo_stereo_node src/yolo_stereo_node.cpp)
+target_link_libraries(yolo_stereo_node ${catkin_LIBRARIES} ${ORB_SLAM3_LIBS})
+
+catkin_install_python(PROGRAMS
+  scripts/yolo_mask_node.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+CMAKELISTS
+
+# Create YOLOv8 mask generation node (Python)
+RUN cat << 'YOLOMASK' > /root/catkin_ws/src/yolo_orb_slam3_ros/scripts/yolo_mask_node.py
+#!/usr/bin/env python3
+"""
+YOLOv8 Dynamic Object Masking Node
+
+Subscribes to stereo images, detects dynamic objects (people, vehicles),
+and publishes binary masks for ORB-SLAM3 feature filtering.
+
+Author: Wade Williams
+Course: EECE5554 Robotic Sensing and Navigation
+"""
+
+import rospy
+import cv2
+import numpy as np
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+from ultralytics import YOLO
+
+class YOLOMaskNode:
+    def __init__(self):
+        rospy.init_node('yolo_mask_node')
+
+        # Parameters
+        self.model_path = rospy.get_param('~model_path', 'yolov8n.pt')
+        self.confidence = rospy.get_param('~confidence', 0.5)
+        self.mask_dilation = rospy.get_param('~mask_dilation', 10)
+
+        # Dynamic object classes (COCO dataset)
+        # 0: person, 1: bicycle, 2: car, 3: motorcycle, 5: bus, 7: truck
+        self.dynamic_classes = [0, 1, 2, 3, 5, 7]
+
+        # Load YOLOv8 model
+        rospy.loginfo(f"Loading YOLOv8 model: {self.model_path}")
+        self.model = YOLO(self.model_path)
+        self.model.to('cuda')  # Use GPU
+
+        self.bridge = CvBridge()
+
+        # Publishers for masked images
+        self.left_mask_pub = rospy.Publisher(
+            '/camera_array/cam1/dynamic_mask', Image, queue_size=1)
+        self.right_mask_pub = rospy.Publisher(
+            '/camera_array/cam3/dynamic_mask', Image, queue_size=1)
+        self.left_masked_pub = rospy.Publisher(
+            '/camera_array/cam1/image_masked', Image, queue_size=1)
+        self.right_masked_pub = rospy.Publisher(
+            '/camera_array/cam3/image_masked', Image, queue_size=1)
+
+        # Subscribers
+        self.left_sub = rospy.Subscriber(
+            '/camera_array/cam1/image_raw', Image, self.left_callback, queue_size=1)
+        self.right_sub = rospy.Subscriber(
+            '/camera_array/cam3/image_raw', Image, self.right_callback, queue_size=1)
+
+        rospy.loginfo("YOLOMaskNode initialized")
+
+    def detect_and_mask(self, cv_image):
+        """Run YOLOv8 detection and create binary mask for dynamic objects."""
+        # Run inference
+        results = self.model(cv_image, conf=self.confidence, verbose=False)
+
+        # Create mask (255 = static/valid, 0 = dynamic/masked)
+        mask = np.ones(cv_image.shape[:2], dtype=np.uint8) * 255
+
+        for result in results:
+            if result.boxes is not None:
+                for box, cls in zip(result.boxes.xyxy, result.boxes.cls):
+                    if int(cls) in self.dynamic_classes:
+                        x1, y1, x2, y2 = map(int, box)
+                        # Mask the bounding box region
+                        mask[y1:y2, x1:x2] = 0
+
+        # Dilate mask to ensure features near edges are also filtered
+        if self.mask_dilation > 0:
+            kernel = np.ones((self.mask_dilation, self.mask_dilation), np.uint8)
+            mask = cv2.erode(mask, kernel, iterations=1)
+
+        return mask
+
+    def left_callback(self, msg):
+        try:
+            cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+            mask = self.detect_and_mask(cv_image)
+
+            # Publish mask
+            mask_msg = self.bridge.cv2_to_imgmsg(mask, "mono8")
+            mask_msg.header = msg.header
+            self.left_mask_pub.publish(mask_msg)
+
+            # Publish masked image (for visualization)
+            masked_image = cv2.bitwise_and(cv_image, cv_image, mask=mask)
+            masked_msg = self.bridge.cv2_to_imgmsg(masked_image, "bgr8")
+            masked_msg.header = msg.header
+            self.left_masked_pub.publish(masked_msg)
+
+        except Exception as e:
+            rospy.logerr(f"Left image processing error: {e}")
+
+    def right_callback(self, msg):
+        try:
+            cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+            mask = self.detect_and_mask(cv_image)
+
+            mask_msg = self.bridge.cv2_to_imgmsg(mask, "mono8")
+            mask_msg.header = msg.header
+            self.right_mask_pub.publish(mask_msg)
+
+            masked_image = cv2.bitwise_and(cv_image, cv_image, mask=mask)
+            masked_msg = self.bridge.cv2_to_imgmsg(masked_image, "bgr8")
+            masked_msg.header = msg.header
+            self.right_masked_pub.publish(masked_msg)
+
+        except Exception as e:
+            rospy.logerr(f"Right image processing error: {e}")
+
+if __name__ == '__main__':
+    try:
+        node = YOLOMaskNode()
+        rospy.spin()
+    except rospy.ROSInterruptException:
+        pass
+YOLOMASK
+RUN chmod +x /root/catkin_ws/src/yolo_orb_slam3_ros/scripts/yolo_mask_node.py
+
+# Create C++ stereo node that uses masked images
+RUN cat << 'STEREONODE' > /root/catkin_ws/src/yolo_orb_slam3_ros/src/yolo_stereo_node.cpp
+#include <iostream>
+#include <algorithm>
+#include <fstream>
+#include <chrono>
+#include <iomanip>
+#include <mutex>
+
+#include <ros/ros.h>
+#include <cv_bridge/cv_bridge.h>
+#include <sensor_msgs/Image.h>
+#include <message_filters/subscriber.h>
+#include <message_filters/time_synchronizer.h>
+#include <message_filters/sync_policies/approximate_time.h>
+
+#include <opencv2/core/core.hpp>
+
+#include "System.h"
+
+using namespace std;
+
+class YOLOStereoNode {
+public:
+    YOLOStereoNode(ORB_SLAM3::System* pSLAM, const string& output_file)
+        : mpSLAM(pSLAM), mOutputFile(output_file), mFrameCount(0),
+          mDynamicFilteredCount(0) {
+        mTrajFile.open(output_file);
+        mTrajFile << fixed;
+    }
+
+    ~YOLOStereoNode() {
+        if (mTrajFile.is_open()) {
+            mTrajFile.close();
+        }
+        ROS_INFO("Processed %d frames, %d had dynamic objects filtered",
+                 mFrameCount, mDynamicFilteredCount);
+    }
+
+    void MaskCallback(const sensor_msgs::ImageConstPtr& maskLeft,
+                      const sensor_msgs::ImageConstPtr& maskRight) {
+        std::lock_guard<std::mutex> lock(mMaskMutex);
+        try {
+            mLeftMask = cv_bridge::toCvCopy(maskLeft, "mono8")->image;
+            mRightMask = cv_bridge::toCvCopy(maskRight, "mono8")->image;
+        } catch (cv_bridge::Exception& e) {
+            ROS_ERROR("Mask cv_bridge exception: %s", e.what());
+        }
+    }
+
+    void GrabStereo(const sensor_msgs::ImageConstPtr& msgLeft,
+                    const sensor_msgs::ImageConstPtr& msgRight) {
+        cv_bridge::CvImageConstPtr cv_ptrLeft, cv_ptrRight;
+        try {
+            cv_ptrLeft = cv_bridge::toCvShare(msgLeft);
+            cv_ptrRight = cv_bridge::toCvShare(msgRight);
+        } catch (cv_bridge::Exception& e) {
+            ROS_ERROR("cv_bridge exception: %s", e.what());
+            return;
+        }
+
+        cv::Mat imgLeft = cv_ptrLeft->image.clone();
+        cv::Mat imgRight = cv_ptrRight->image.clone();
+
+        // Apply dynamic object masks if available
+        {
+            std::lock_guard<std::mutex> lock(mMaskMutex);
+            if (!mLeftMask.empty() && mLeftMask.size() == imgLeft.size()) {
+                // Zero out pixels in dynamic regions
+                imgLeft.setTo(0, mLeftMask == 0);
+                mDynamicFilteredCount++;
+            }
+            if (!mRightMask.empty() && mRightMask.size() == imgRight.size()) {
+                imgRight.setTo(0, mRightMask == 0);
+            }
+        }
+
+        double timestamp = msgLeft->header.stamp.toSec();
+        Sophus::SE3f Tcw = mpSLAM->TrackStereo(imgLeft, imgRight, timestamp);
+
+        if (mpSLAM->GetTrackingState() == ORB_SLAM3::Tracking::OK) {
+            Sophus::SE3f Twc = Tcw.inverse();
+            Eigen::Vector3f t = Twc.translation();
+            Eigen::Quaternionf q = Twc.unit_quaternion();
+            mTrajFile << setprecision(6) << timestamp << " "
+                      << setprecision(9) << t.x() << " " << t.y() << " " << t.z() << " "
+                      << q.x() << " " << q.y() << " " << q.z() << " " << q.w() << endl;
+        }
+
+        mFrameCount++;
+        if (mFrameCount % 100 == 0) {
+            ROS_INFO("Processed %d frames (%d with dynamic filtering)",
+                     mFrameCount, mDynamicFilteredCount);
+        }
+    }
+
+private:
+    ORB_SLAM3::System* mpSLAM;
+    string mOutputFile;
+    ofstream mTrajFile;
+    int mFrameCount;
+    int mDynamicFilteredCount;
+
+    std::mutex mMaskMutex;
+    cv::Mat mLeftMask;
+    cv::Mat mRightMask;
+};
+
+int main(int argc, char **argv) {
+    ros::init(argc, argv, "yolo_orb_slam3_stereo");
+    ros::NodeHandle nh("~");
+
+    string vocab_path, config_path, output_path;
+    string left_topic, right_topic;
+    string left_mask_topic, right_mask_topic;
+    bool use_viewer;
+
+    nh.param<string>("vocab_path", vocab_path, "/opt/ORB_SLAM3/Vocabulary/ORBvoc.txt");
+    nh.param<string>("config_path", config_path, "/config/ISEC_stereo.yaml");
+    nh.param<string>("output_path", output_path, "/results/trajectories/yolo_orb_slam3/trajectory.txt");
+    nh.param<string>("left_topic", left_topic, "/camera_array/cam1/image_raw");
+    nh.param<string>("right_topic", right_topic, "/camera_array/cam3/image_raw");
+    nh.param<string>("left_mask_topic", left_mask_topic, "/camera_array/cam1/dynamic_mask");
+    nh.param<string>("right_mask_topic", right_mask_topic, "/camera_array/cam3/dynamic_mask");
+    nh.param<bool>("use_viewer", use_viewer, false);
+
+    ROS_INFO("YOLOv8-ORB-SLAM3 Stereo Node");
+    ROS_INFO("Vocabulary: %s", vocab_path.c_str());
+    ROS_INFO("Config: %s", config_path.c_str());
+    ROS_INFO("Output: %s", output_path.c_str());
+
+    ORB_SLAM3::System SLAM(vocab_path, config_path, ORB_SLAM3::System::STEREO, use_viewer);
+    YOLOStereoNode node(&SLAM, output_path);
+
+    // Subscribe to masks
+    message_filters::Subscriber<sensor_msgs::Image> left_mask_sub(nh, left_mask_topic, 10);
+    message_filters::Subscriber<sensor_msgs::Image> right_mask_sub(nh, right_mask_topic, 10);
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> mask_sync_pol;
+    message_filters::Synchronizer<mask_sync_pol> mask_sync(mask_sync_pol(10), left_mask_sub, right_mask_sub);
+    mask_sync.registerCallback(boost::bind(&YOLOStereoNode::MaskCallback, &node, _1, _2));
+
+    // Subscribe to images
+    message_filters::Subscriber<sensor_msgs::Image> left_sub(nh, left_topic, 100);
+    message_filters::Subscriber<sensor_msgs::Image> right_sub(nh, right_topic, 100);
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> sync_pol;
+    message_filters::Synchronizer<sync_pol> sync(sync_pol(10), left_sub, right_sub);
+    sync.registerCallback(boost::bind(&YOLOStereoNode::GrabStereo, &node, _1, _2));
+
+    ros::spin();
+
+    SLAM.Shutdown();
+
+    return 0;
+}
+STEREONODE
+
+# Build the ROS workspace
+WORKDIR /root/catkin_ws
+RUN /bin/bash -c "source /opt/ros/noetic/setup.bash && catkin_make -DCMAKE_BUILD_TYPE=Release"
+
+# Create run script
+RUN cat << 'RUNSCRIPT' > /root/run_yolo_orb_slam3.sh
+#!/bin/bash
+set -e
+
+FLOOR=${1:-5th_floor}
+DATA_DIR="/data/${FLOOR}"
+OUTPUT_DIR="/results/trajectories/yolo_orb_slam3"
+
+source /opt/ros/noetic/setup.bash
+source /root/catkin_ws/devel/setup.bash
+
+mkdir -p "${OUTPUT_DIR}"
+
+echo "============================================"
+echo "YOLOv8-ORB-SLAM3 - ${FLOOR}"
+echo "============================================"
+
+# Start roscore
+roscore &
+ROSCORE_PID=$!
+sleep 3
+
+# Start YOLOv8 mask node
+rosrun yolo_orb_slam3_ros yolo_mask_node.py &
+YOLO_PID=$!
+sleep 5
+
+# Start ORB-SLAM3 with mask support
+rosrun yolo_orb_slam3_ros yolo_stereo_node \
+    _vocab_path:="/opt/ORB_SLAM3/Vocabulary/ORBvoc.txt" \
+    _config_path:="/config/ISEC_stereo.yaml" \
+    _output_path:="${OUTPUT_DIR}/${FLOOR}.txt" \
+    _use_viewer:=false &
+SLAM_PID=$!
+sleep 35
+
+# Play bag files
+for bag in $(ls -1 "${DATA_DIR}"/*.bag | sort); do
+    echo "Playing: $(basename $bag)"
+    rosbag play "$bag" --clock \
+        --topics /camera_array/cam1/image_raw /camera_array/cam3/image_raw \
+        -r 0.3
+    sleep 2
+done
+
+sleep 15
+
+# Cleanup
+kill $SLAM_PID $YOLO_PID $ROSCORE_PID 2>/dev/null || true
+
+echo "============================================"
+echo "Complete: ${OUTPUT_DIR}/${FLOOR}.txt"
+echo "============================================"
+RUNSCRIPT
+RUN chmod +x /root/run_yolo_orb_slam3.sh
+
+WORKDIR /root
+ENV ROS_MASTER_URI=http://localhost:11311
+
+CMD ["/bin/bash"]

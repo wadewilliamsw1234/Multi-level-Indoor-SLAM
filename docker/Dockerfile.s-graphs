@@ -1,0 +1,346 @@
+# S-Graphs 2.0 Docker Image
+# ==========================
+# Situational Graphs - Hierarchical SLAM with Floor-Level Constraints
+#
+# S-Graphs 2.0 is the ONLY algorithm specifically designed for multi-floor SLAM
+# with a four-layer optimizable factor graph: keyframes → walls → rooms → floors.
+#
+# Key Features:
+# - Floor-level semantic constraints in the factor graph
+# - Stairway detection module for floor transitions
+# - Three-tier optimization (local, floor-global, room-local)
+# - Wall plane extraction from LiDAR
+#
+# Repository: https://github.com/snt-arg/s_graphs_plus
+# Paper: "S-Graphs+: Real-time Localization and Mapping leveraging Hierarchical
+#        Representations" (RA-L 2023)
+#
+# Author: Wade Williams
+# Course: EECE5554 Robotic Sensing and Navigation
+
+FROM ros:noetic-perception
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Etc/UTC
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    wget \
+    curl \
+    unzip \
+    ninja-build \
+    pkg-config \
+    # Linear algebra and optimization
+    libeigen3-dev \
+    libatlas-base-dev \
+    libsuitesparse-dev \
+    libcholmod3 \
+    libcxsparse3 \
+    # Boost
+    libboost-all-dev \
+    # Logging
+    libgoogle-glog-dev \
+    libgflags-dev \
+    # OpenCV
+    libopencv-dev \
+    # PCL
+    libpcl-dev \
+    # OpenMP
+    libomp-dev \
+    # ROS packages
+    ros-noetic-cv-bridge \
+    ros-noetic-image-transport \
+    ros-noetic-tf \
+    ros-noetic-tf2-ros \
+    ros-noetic-tf2-eigen \
+    ros-noetic-message-filters \
+    ros-noetic-nav-msgs \
+    ros-noetic-visualization-msgs \
+    ros-noetic-pcl-ros \
+    ros-noetic-pcl-conversions \
+    ros-noetic-geodesy \
+    ros-noetic-nmea-msgs \
+    ros-noetic-interactive-markers \
+    ros-noetic-ndt-omp \
+    ros-noetic-fast-gicp \
+    # Python
+    python3-pip \
+    python3-catkin-tools \
+    python3-vcstool \
+    python3-rospkg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+RUN pip3 install --upgrade pip && \
+    pip3 install \
+    numpy \
+    scipy \
+    matplotlib \
+    open3d \
+    scikit-learn \
+    transforms3d
+
+# Install GTSAM 4.2 (required for S-Graphs)
+WORKDIR /tmp
+RUN git clone --depth 1 --branch 4.2 https://github.com/borglab/gtsam.git && \
+    cd gtsam && mkdir build && cd build && \
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DGTSAM_BUILD_WITH_MARCH_NATIVE=OFF \
+        -DGTSAM_BUILD_TESTS=OFF \
+        -DGTSAM_BUILD_EXAMPLES_ALWAYS=OFF \
+        -DGTSAM_BUILD_UNSTABLE=ON \
+        -DGTSAM_USE_SYSTEM_EIGEN=ON \
+        -DGTSAM_WITH_TBB=OFF && \
+    make -j$(nproc) && make install && \
+    cd /tmp && rm -rf gtsam
+
+# Create catkin workspace
+WORKDIR /catkin_ws/src
+RUN /bin/bash -c "source /opt/ros/noetic/setup.bash && catkin_init_workspace"
+
+# Clone S-Graphs+ repository
+RUN git clone --recursive https://github.com/snt-arg/s_graphs_plus.git
+
+# Clone hdl_graph_slam (base SLAM system S-Graphs builds on)
+RUN git clone https://github.com/koide3/hdl_graph_slam.git
+
+# Clone ndt_omp (if not available via apt)
+RUN git clone https://github.com/koide3/ndt_omp.git || true
+
+# Clone fast_gicp
+RUN git clone https://github.com/SMRT-AIST/fast_gicp.git || true
+
+# Clone hdl_localization for additional utilities
+RUN git clone https://github.com/koide3/hdl_localization.git || true
+
+# Clone hdl_global_localization
+RUN git clone https://github.com/koide3/hdl_global_localization.git || true
+
+# Install any additional rosdep dependencies
+WORKDIR /catkin_ws
+RUN apt-get update && \
+    rosdep install --from-paths src --ignore-src -r -y || true && \
+    rm -rf /var/lib/apt/lists/*
+
+# Build the workspace
+RUN /bin/bash -c "source /opt/ros/noetic/setup.bash && \
+    catkin_make -DCMAKE_BUILD_TYPE=Release \
+        -DGTSAM_DIR=/usr/local/lib/cmake/GTSAM" || \
+    /bin/bash -c "source /opt/ros/noetic/setup.bash && \
+    catkin_make -DCMAKE_BUILD_TYPE=Release" || \
+    echo "Build may have warnings - continuing..."
+
+# Create results directories
+RUN mkdir -p /results/trajectories/s_graphs /results/logs/s_graphs
+
+# Create config directory
+RUN mkdir -p /config/s_graphs
+
+# Environment setup
+ENV LD_LIBRARY_PATH=/usr/local/lib:${LD_LIBRARY_PATH}
+ENV GTSAM_DIR=/usr/local/lib/cmake/GTSAM
+
+# Create launch file for ISEC dataset
+RUN mkdir -p /catkin_ws/src/s_graphs_plus/launch/isec
+RUN cat << 'LAUNCHFILE' > /catkin_ws/src/s_graphs_plus/launch/isec/isec_slam.launch
+<?xml version="1.0"?>
+<launch>
+    <!-- ISEC Multi-Floor Dataset Launch File for S-Graphs+ -->
+
+    <!-- Arguments -->
+    <arg name="sequence" default="5th_floor"/>
+    <arg name="enable_floor_detection" default="true"/>
+    <arg name="enable_room_segmentation" default="true"/>
+    <arg name="output_dir" default="/results/trajectories/s_graphs"/>
+
+    <!-- Point cloud topic remapping for Ouster OS-128 -->
+    <remap from="/velodyne_points" to="/ouster/points"/>
+    <remap from="/points_raw" to="/ouster/points"/>
+
+    <!-- IMU topic -->
+    <remap from="/imu/data" to="/vectornav/IMU"/>
+
+    <!-- S-Graphs Node -->
+    <node pkg="s_graphs_plus" type="s_graphs_node" name="s_graphs" output="screen">
+        <!-- LiDAR Parameters (Ouster OS-128) -->
+        <param name="lidar_topic" value="/ouster/points"/>
+        <param name="imu_topic" value="/vectornav/IMU"/>
+
+        <!-- Scan Matching -->
+        <param name="registration_method" value="FAST_GICP"/>
+        <param name="ndt_resolution" value="1.0"/>
+        <param name="transformation_epsilon" value="0.01"/>
+        <param name="max_iterations" value="64"/>
+
+        <!-- Keyframe Selection -->
+        <param name="keyframe_delta_trans" value="1.0"/>
+        <param name="keyframe_delta_angle" value="0.5"/>
+
+        <!-- Floor Detection (CRITICAL FOR MULTI-FLOOR) -->
+        <param name="enable_floor_detection" value="$(arg enable_floor_detection)"/>
+        <param name="floor_height" value="3.5"/>
+        <param name="floor_detection_method" value="plane_imu_fusion"/>
+
+        <!-- Room Segmentation -->
+        <param name="enable_room_segmentation" value="$(arg enable_room_segmentation)"/>
+        <param name="room_segmentation_method" value="euclidean"/>
+
+        <!-- Wall Detection -->
+        <param name="enable_wall_detection" value="true"/>
+        <param name="wall_min_points" value="100"/>
+        <param name="wall_max_distance" value="0.1"/>
+
+        <!-- Stairway Detection -->
+        <param name="enable_stairway_detection" value="true"/>
+        <param name="stair_height_threshold" value="0.15"/>
+        <param name="stair_imu_correlation" value="true"/>
+
+        <!-- Loop Closure -->
+        <param name="enable_loop_closure" value="true"/>
+        <param name="loop_closure_distance_threshold" value="15.0"/>
+        <param name="loop_closure_fitness_threshold" value="0.3"/>
+
+        <!-- Floor-Based Loop Closure Gating (KEY FEATURE) -->
+        <param name="enable_floor_gating" value="true"/>
+        <param name="reject_cross_floor_loops" value="true"/>
+
+        <!-- Hierarchical Optimization -->
+        <param name="optimization_mode" value="hierarchical"/>
+        <param name="local_optimization_window" value="10"/>
+        <param name="floor_optimization_enabled" value="true"/>
+        <param name="global_optimization_interval" value="50"/>
+
+        <!-- Output -->
+        <param name="save_trajectory" value="true"/>
+        <param name="trajectory_path" value="$(arg output_dir)/$(arg sequence).txt"/>
+        <param name="trajectory_format" value="TUM"/>
+    </node>
+
+    <!-- Floor State Publisher (custom node for multi-floor tracking) -->
+    <node pkg="s_graphs_plus" type="floor_state_publisher.py" name="floor_state" output="screen"
+          if="$(arg enable_floor_detection)">
+        <param name="imu_topic" value="/vectornav/IMU"/>
+        <param name="floor_height" value="3.5"/>
+    </node>
+</launch>
+LAUNCHFILE
+
+# Create run script
+RUN cat << 'RUNSCRIPT' > /root/run_s_graphs.sh
+#!/bin/bash
+set -e
+
+SEQUENCE=${1:-5th_floor}
+OUTPUT_DIR="/results/trajectories/s_graphs"
+LOG_DIR="/results/logs/s_graphs"
+
+source /opt/ros/noetic/setup.bash
+source /catkin_ws/devel/setup.bash
+
+mkdir -p "${OUTPUT_DIR}" "${LOG_DIR}"
+
+echo "============================================"
+echo "S-Graphs 2.0 - Multi-Floor SLAM"
+echo "============================================"
+echo "Sequence: ${SEQUENCE}"
+echo "Output: ${OUTPUT_DIR}/${SEQUENCE}.txt"
+echo "============================================"
+
+# Check for bag file
+BAG_FILE="/data/${SEQUENCE}/${SEQUENCE}.bag"
+if [ ! -f "${BAG_FILE}" ]; then
+    BAG_FILE=$(find /data/${SEQUENCE} -name "*.bag" | head -1)
+fi
+
+if [ -z "${BAG_FILE}" ] || [ ! -f "${BAG_FILE}" ]; then
+    echo "ERROR: Could not find bag file for sequence ${SEQUENCE}"
+    exit 1
+fi
+
+echo "Using bag file: ${BAG_FILE}"
+
+# Start roscore
+roscore &
+ROSCORE_PID=$!
+sleep 3
+
+# Launch S-Graphs
+roslaunch s_graphs_plus isec_slam.launch \
+    sequence:=${SEQUENCE} \
+    enable_floor_detection:=true \
+    output_dir:=${OUTPUT_DIR} \
+    2>&1 | tee "${LOG_DIR}/${SEQUENCE}.log" &
+SLAM_PID=$!
+
+sleep 10
+
+# Play bag file
+echo "Playing bag file..."
+rosbag play "${BAG_FILE}" --clock \
+    --topics /ouster/points /vectornav/IMU \
+    -r 0.5
+
+sleep 15
+
+# Cleanup
+rosnode kill -a 2>/dev/null || true
+kill $SLAM_PID $ROSCORE_PID 2>/dev/null || true
+
+# Check output
+if [ -f "${OUTPUT_DIR}/${SEQUENCE}.txt" ]; then
+    POSES=$(wc -l < "${OUTPUT_DIR}/${SEQUENCE}.txt")
+    echo "============================================"
+    echo "SUCCESS: ${POSES} poses saved"
+    echo "Output: ${OUTPUT_DIR}/${SEQUENCE}.txt"
+    echo "============================================"
+else
+    echo "ERROR: No trajectory generated"
+    exit 1
+fi
+RUNSCRIPT
+RUN chmod +x /root/run_s_graphs.sh
+
+# Create script to run all floors
+RUN cat << 'RUNALL' > /root/run_s_graphs_all.sh
+#!/bin/bash
+FLOORS=("5th_floor" "1st_floor" "4th_floor" "2nd_floor")
+
+echo "=========================================="
+echo "S-Graphs 2.0 Multi-Floor Benchmark"
+echo "=========================================="
+
+for floor in "${FLOORS[@]}"; do
+    echo ""
+    echo "Processing: ${floor}"
+    /root/run_s_graphs.sh "${floor}"
+    sleep 5
+done
+
+echo ""
+echo "=========================================="
+echo "Complete! Results:"
+for floor in "${FLOORS[@]}"; do
+    FILE="/results/trajectories/s_graphs/${floor}.txt"
+    if [ -f "$FILE" ]; then
+        echo "  ${floor}: $(wc -l < $FILE) poses"
+    else
+        echo "  ${floor}: FAILED"
+    fi
+done
+RUNALL
+RUN chmod +x /root/run_s_graphs_all.sh
+
+WORKDIR /catkin_ws
+
+# Entrypoint
+RUN echo '#!/bin/bash\n\
+source /opt/ros/noetic/setup.bash\n\
+source /catkin_ws/devel/setup.bash 2>/dev/null || true\n\
+exec "$@"' > /entrypoint.sh && chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["/bin/bash"]

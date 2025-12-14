@@ -1,0 +1,175 @@
+{
+  "configById": {},
+  "globalVariables": {},
+  "userNodes": {},
+  "linkedGlobalVariables": [],
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": {
+    "direction": "row",
+    "first": {
+      "direction": "column",
+      "first": {
+        "activeTabId": "3D",
+        "tabs": [
+          {
+            "id": "3D",
+            "title": "3D View",
+            "config": {
+              "followTf": "base_link",
+              "scene": {
+                "enableStats": false,
+                "backgroundColor": "#1a1a2e"
+              },
+              "cameraState": {
+                "perspective": true,
+                "distance": 50,
+                "phi": 60,
+                "thetaOffset": 45,
+                "targetOffset": [0, 0, 0],
+                "target": [0, 0, 0],
+                "targetOrientation": [0, 0, 0, 1],
+                "fovy": 45,
+                "near": 0.5,
+                "far": 5000
+              },
+              "transforms": {
+                "frame:odom": {
+                  "visible": true
+                },
+                "frame:base_link": {
+                  "visible": true
+                }
+              },
+              "topics": {
+                "/ouster/points": {
+                  "visible": true,
+                  "pointSize": 2,
+                  "colorMode": "colormap",
+                  "colorField": "intensity",
+                  "colorMap": "turbo"
+                },
+                "/aft_mapped_to_init": {
+                  "visible": true
+                },
+                "/laser_cloud_surround": {
+                  "visible": true,
+                  "pointSize": 1,
+                  "colorMode": "flat",
+                  "flatColor": "#00ff88"
+                }
+              },
+              "publish": {
+                "type": "point",
+                "poseTopic": "/move_base_simple/goal",
+                "pointTopic": "/clicked_point"
+              }
+            }
+          }
+        ]
+      },
+      "second": {
+        "activeTabId": "Map",
+        "tabs": [
+          {
+            "id": "Map",
+            "title": "Trajectory Map",
+            "config": {
+              "followTf": "base_link",
+              "scene": {
+                "enableStats": false,
+                "backgroundColor": "#0f0f1a"
+              },
+              "cameraState": {
+                "perspective": false,
+                "distance": 100,
+                "phi": 0,
+                "thetaOffset": 0,
+                "targetOffset": [0, 0, 0],
+                "target": [0, 0, 0],
+                "targetOrientation": [0, 0, 0, 1],
+                "fovy": 45,
+                "near": 0.5,
+                "far": 5000
+              },
+              "topics": {
+                "/aft_mapped_to_init": {
+                  "visible": true
+                }
+              }
+            }
+          }
+        ]
+      },
+      "splitPercentage": 65
+    },
+    "second": {
+      "direction": "column",
+      "first": {
+        "activeTabId": "Topics",
+        "tabs": [
+          {
+            "id": "Topics",
+            "title": "Topic List",
+            "config": {}
+          }
+        ]
+      },
+      "second": {
+        "direction": "column",
+        "first": {
+          "activeTabId": "Plot",
+          "tabs": [
+            {
+              "id": "Plot",
+              "title": "Trajectory Plot",
+              "config": {
+                "paths": [
+                  {
+                    "value": "/aft_mapped_to_init.pose.pose.position.x",
+                    "enabled": true,
+                    "timestampMethod": "receiveTime"
+                  },
+                  {
+                    "value": "/aft_mapped_to_init.pose.pose.position.y",
+                    "enabled": true,
+                    "timestampMethod": "receiveTime"
+                  },
+                  {
+                    "value": "/aft_mapped_to_init.pose.pose.position.z",
+                    "enabled": true,
+                    "timestampMethod": "receiveTime"
+                  }
+                ],
+                "showXAxisLabels": true,
+                "showYAxisLabels": true,
+                "showLegend": true,
+                "legendDisplay": "floating",
+                "showPlotValuesInLegend": true,
+                "isSynced": true,
+                "xAxisVal": "timestamp",
+                "sidebarDimension": 240
+              }
+            }
+          ]
+        },
+        "second": {
+          "activeTabId": "RawMessages",
+          "tabs": [
+            {
+              "id": "RawMessages",
+              "title": "Raw Messages",
+              "config": {
+                "topicPath": "/aft_mapped_to_init"
+              }
+            }
+          ]
+        },
+        "splitPercentage": 50
+      },
+      "splitPercentage": 30
+    },
+    "splitPercentage": 75
+  }
+}

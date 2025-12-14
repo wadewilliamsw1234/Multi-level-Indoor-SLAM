@@ -1,0 +1,151 @@
+# SuMa++ (Semantic SUMA) Docker Image
+# ====================================
+# Semantic LiDAR SLAM combining SuMa with RangeNet++ semantic segmentation.
+# Reference: https://github.com/PRBonn/semantic_suma
+#
+# Features:
+# - Surfel-based mapping with semantic labels
+# - Dynamic object filtering (people, vehicles)
+# - Loop closure with semantic consistency
+#
+# Author: Wade Williams
+# Course: EECE5554 Robotic Sensing and Navigation
+
+FROM nvidia/cuda:11.3.1-cudnn8-devel-ubuntu18.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    wget \
+    curl \
+    unzip \
+    libboost-all-dev \
+    libeigen3-dev \
+    libglew-dev \
+    libgoogle-glog-dev \
+    libgflags-dev \
+    libopencv-dev \
+    libqt5opengl5-dev \
+    qt5-default \
+    python3-pip \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install ROS Melodic
+RUN sh -c 'echo "deb http://packages.ros.org/ros/ubuntu bionic main" > /etc/apt/sources.list.d/ros-latest.list' && \
+    curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | apt-key add - && \
+    apt-get update && apt-get install -y \
+    ros-melodic-ros-base \
+    ros-melodic-tf \
+    ros-melodic-pcl-ros \
+    ros-melodic-sensor-msgs \
+    ros-melodic-nav-msgs \
+    python-rosdep \
+    python-rosinstall \
+    python-rosinstall-generator \
+    python-wstool \
+    && rm -rf /var/lib/apt/lists/*
+
+# Initialize rosdep
+RUN rosdep init && rosdep update
+
+# Install Python dependencies for RangeNet++
+RUN pip3 install --upgrade pip && \
+    pip3 install \
+    numpy \
+    scipy \
+    torch==1.10.0+cu113 \
+    torchvision==0.11.1+cu113 \
+    -f https://download.pytorch.org/whl/cu113/torch_stable.html
+
+RUN pip3 install \
+    vispy \
+    PyYAML \
+    strictyaml \
+    laserscan
+
+# Create workspace
+WORKDIR /root/catkin_ws/src
+
+# Clone SuMa (core surfel mapping)
+RUN git clone https://github.com/jbehley/SuMa.git && \
+    cd SuMa && \
+    git checkout master
+
+# Clone glow (OpenGL utilities)
+RUN git clone https://github.com/jbehley/glow.git
+
+# Clone RangeNet++ library for semantic segmentation
+RUN git clone https://github.com/PRBonn/rangenet_lib.git && \
+    cd rangenet_lib && \
+    git checkout master
+
+# Clone semantic_suma (integrates SuMa + RangeNet++)
+RUN git clone https://github.com/PRBonn/semantic_suma.git && \
+    cd semantic_suma && \
+    git checkout master
+
+# Build glow
+WORKDIR /root/catkin_ws/src/glow
+RUN mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release && \
+    make -j$(nproc)
+
+# Build RangeNet++ library
+WORKDIR /root/catkin_ws/src/rangenet_lib
+RUN mkdir build && cd build && \
+    cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda && \
+    make -j$(nproc)
+
+# Build SuMa
+WORKDIR /root/catkin_ws/src/SuMa
+RUN mkdir build && cd build && \
+    cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -Dglow_DIR=/root/catkin_ws/src/glow/build && \
+    make -j$(nproc)
+
+# Build semantic_suma
+WORKDIR /root/catkin_ws/src/semantic_suma
+RUN mkdir build && cd build && \
+    cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -Dglow_DIR=/root/catkin_ws/src/glow/build \
+    -DSuMa_DIR=/root/catkin_ws/src/SuMa/build \
+    -Drangenet_lib_DIR=/root/catkin_ws/src/rangenet_lib/build && \
+    make -j$(nproc)
+
+# Download pre-trained RangeNet++ model (SemanticKITTI)
+WORKDIR /root/models
+RUN wget -q https://www.ipb.uni-bonn.de/html/projects/semantic_suma/darknet53.tar.gz && \
+    tar -xzf darknet53.tar.gz && \
+    rm darknet53.tar.gz
+
+# Build ROS workspace
+WORKDIR /root/catkin_ws
+RUN /bin/bash -c "source /opt/ros/melodic/setup.bash && catkin_make"
+
+# Setup environment
+RUN echo "source /opt/ros/melodic/setup.bash" >> /root/.bashrc && \
+    echo "source /root/catkin_ws/devel/setup.bash" >> /root/.bashrc && \
+    echo "export RANGENET_MODEL_PATH=/root/models/darknet53" >> /root/.bashrc
+
+ENV RANGENET_MODEL_PATH=/root/models/darknet53
+
+# Copy entrypoint script
+COPY docker/entrypoints/suma_entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Working directory
+WORKDIR /root/catkin_ws
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["bash"]

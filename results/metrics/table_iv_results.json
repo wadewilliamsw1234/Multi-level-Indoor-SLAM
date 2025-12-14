@@ -1,0 +1,135 @@
+{
+  "generated": "2025-12-03T15:06:32.258487",
+  "results": {
+    "lego_loam": {
+      "5th_floor": {
+        "length": 188.14239890947033,
+        "drift": 0.7470965688624196,
+        "drift_pct": 0.3970910189265232,
+        "num_poses": 1095,
+        "success": true
+      },
+      "1st_floor": {
+        "length": 73.72724501079108,
+        "drift": 0.32914125072983486,
+        "drift_pct": 0.44643096413226907,
+        "num_poses": 319,
+        "success": true
+      },
+      "4th_floor": {
+        "length": 66.16162784084216,
+        "drift": 0.13756728515893596,
+        "drift_pct": 0.20792608895577153,
+        "num_poses": 327,
+        "success": true
+      },
+      "2nd_floor": {
+        "length": 135.01739734472022,
+        "drift": 0.10669718782610907,
+        "drift_pct": 0.07902477008477263,
+        "num_poses": 665,
+        "success": true
+      }
+    },
+    "orb_slam3": {
+      "5th_floor": {
+        "length": 151.89113127878545,
+        "drift": 0.7027226992232538,
+        "drift_pct": 0.462648933684914,
+        "num_poses": 7800,
+        "success": true,
+        "ape": {
+          "error": "Could not parse evo output",
+          "output": "--------------------------------------------------------------------------------\nLoaded 1095 stamps and poses from: /home/wadewilliams/Dev/ros1/slam-benchmark/results/trajectories/lego_loam/5th_floor.txt\nLoaded 7800 stamps and poses from: /home/wadewilliams/Dev/ros1/slam-benchmark/results/trajectories/orb_slam3/5th_floor.txt\n--------------------------------------------------------------------------------\nSynchronizing trajectories...\n[ERROR] found no matching timestamps between /home/wadewilliam",
+          "success": false
+        }
+      },
+      "1st_floor": {
+        "length": 31.50065334403476,
+        "drift": 12.010503779835194,
+        "drift_pct": 38.12779261643349,
+        "num_poses": 1991,
+        "success": true,
+        "ape": {
+          "error": "Could not parse evo output",
+          "output": "--------------------------------------------------------------------------------\nLoaded 319 stamps and poses from: /home/wadewilliams/Dev/ros1/slam-benchmark/results/trajectories/lego_loam/1st_floor.txt\nLoaded 1991 stamps and poses from: /home/wadewilliams/Dev/ros1/slam-benchmark/results/trajectories/orb_slam3/1st_floor.txt\n--------------------------------------------------------------------------------\nSynchronizing trajectories...\n[ERROR] found no matching timestamps between /home/wadewilliams",
+          "success": false
+        }
+      },
+      "4th_floor": {
+        "length": 57.99684601162861,
+        "drift": 0.5653171847027236,
+        "drift_pct": 0.9747378065858532,
+        "num_poses": 2617,
+        "success": true,
+        "ape": {
+          "rmse": 3.968032,
+          "mean": 3.465579,
+          "success": true
+        }
+      },
+      "2nd_floor": {
+        "length": 107.00283706569797,
+        "drift": 1.9709707447982927,
+        "drift_pct": 1.8419798940360332,
+        "num_poses": 5191,
+        "success": true,
+        "ape": {
+          "rmse": 7.830155,
+          "mean": 7.025329,
+          "success": true
+        }
+      }
+    },
+    "droid_slam": {
+      "5th_floor": {
+        "length": 58.83113887891345,
+        "drift": 0.19397792559979601,
+        "drift_pct": 0.32971982065321287,
+        "num_poses": 876,
+        "success": true,
+        "ape": {
+          "rmse": 0.082992,
+          "mean": 0.075988,
+          "success": true
+        }
+      },
+      "1st_floor": {
+        "length": 55.47546088735056,
+        "drift": 0.2813329014921646,
+        "drift_pct": 0.5071303545606303,
+        "num_poses": 15,
+        "success": true,
+        "ape": {
+          "rmse": 0.122877,
+          "mean": 0.114377,
+          "success": true
+        }
+      },
+      "4th_floor": {
+        "length": 18.006735162417154,
+        "drift": 0.08092181459285254,
+        "drift_pct": 0.4493974830137386,
+        "num_poses": 14,
+        "success": true,
+        "ape": {
+          "rmse": 0.077099,
+          "mean": 0.068739,
+          "success": true
+        }
+      },
+      "2nd_floor": {
+        "length": 31.19916582466485,
+        "drift": 3.4247280453200952,
+        "drift_pct": 10.976985937914527,
+        "num_poses": 26,
+        "success": true,
+        "ape": {
+          "rmse": 1.234045,
+          "mean": 0.999533,
+          "success": true
+        }
+      }
+    }
+  }
+}

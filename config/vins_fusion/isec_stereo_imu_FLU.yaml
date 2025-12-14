@@ -1,0 +1,71 @@
+%YAML:1.0
+
+#------------------------------------------------------------------------------
+# VINS-Fusion Configuration for ISEC Dataset
+# IMU Convention: FLU (Forward-Left-Up)
+# 
+# IMPORTANT: This config requires transforming IMU data from NED to FLU!
+# Use the imu_ned_to_flu.py node to publish /imu/imu_flu topic.
+#------------------------------------------------------------------------------
+
+imu: 1
+num_of_cam: 2
+
+# Topics - NOTE: Using transformed FLU IMU topic!
+imu_topic: "/imu/imu_flu"
+image0_topic: "/camera_array/cam1/image_raw"
+image1_topic: "/camera_array/cam3/image_raw"
+output_path: "/results/trajectories/vins_fusion"
+
+# Camera calibration files
+cam0_calib: "cam1.yaml"
+cam1_calib: "cam3.yaml"
+
+# Extrinsics: body_T_cam (T_imu_cam) - FLU corrected!
+body_T_cam0: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [
+               0.00348615,     -0.00949395,      0.99994876,      0.05500792,
+              -0.99997344,     -0.00640591,      0.00342509,      0.24720848,
+               0.00637466,     -0.99993444,     -0.00951597,      0.00138091,
+               0.00000000,      0.00000000,      0.00000000,      1.00000000]
+
+body_T_cam1: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [
+              -0.00109040,     -0.00936675,      0.99995543,      0.05392729,
+              -0.99999045,     -0.00419219,     -0.00112998,     -0.08136671,
+               0.00420087,     -0.99994741,     -0.00936203,      0.00208191,
+               0.00000000,      0.00000000,      0.00000000,      1.00000000]
+
+# Feature tracking
+multiple_thread: 1
+max_cnt: 150
+min_dist: 30
+freq: 10
+F_threshold: 1.0
+show_track: 1
+flow_back: 1
+
+# Optimization
+max_solver_time: 0.04
+max_num_iterations: 8
+keyframe_parallax: 10.0
+
+# Time offset: t_imu = t_cam + td
+td: 0.010900041719081245
+estimate_td: 0
+
+# IMU noise parameters
+acc_n: 0.0014126598501078217
+gyr_n: 7.77970988215584e-05
+acc_w: 1.9005701759499173e-05
+gyr_w: 3.3171207235534e-07
+g_norm: 9.81007
+
+# Disable loop closure
+loop_closure: 0

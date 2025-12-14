@@ -1,17 +1,52 @@
 version: '3.8'
 
+# SLAM Benchmark Docker Compose
+# =============================
+# Run individual algorithms or the complete benchmark pipeline.
+#
+# Usage:
+#   docker-compose build                    # Build all images
+#   docker-compose run --rm lego-loam       # Run LeGO-LOAM
+#   docker-compose run --rm orb-slam3       # Run ORB-SLAM3
+#   docker-compose run --rm droid-slam      # Run DROID-SLAM (requires GPU)
+#
+# Author: Wade Williams
+# Course: EECE5554 Robotic Sensing and Navigation
+
 services:
-  # ROS base image with bag playback utilities
+  # ==========================================================================
+  # Base Images
+  # ==========================================================================
+
   ros-base:
     build:
       context: .
       dockerfile: docker/Dockerfile.ros-base
     image: slam-benchmark/ros-base:latest
     volumes:
-      - /home/wadewilliams/Dev/shared/datasets/ISEC:/data/ISEC:ro
+      - ${DATASET_DIR:-/home/wadewilliams/Dev/shared/datasets/ISEC}:/data:ro
       - ./results:/results
-      - ./config:/config
+      - ./config:/config:ro
       - ./scripts:/scripts:ro
+    environment:
+      - ROS_MASTER_URI=http://localhost:11311
+    stdin_open: true
+    tty: true
+
+  # ==========================================================================
+  # SLAM Algorithms
+  # ==========================================================================
+
+  # LeGO-LOAM: LiDAR odometry (pseudo ground-truth)
+  lego-loam:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.lego-loam
+    image: slam-benchmark/lego-loam:latest
+    volumes:
+      - ${DATASET_DIR:-/home/wadewilliams/Dev/shared/datasets/ISEC}:/data:ro
+      - ./results:/results
+      - ./config/lego_loam:/config:ro
     environment:
       - ROS_MASTER_URI=http://localhost:11311
     stdin_open: true
@@ -23,56 +58,14 @@ services:
       context: .
       dockerfile: docker/Dockerfile.orb-slam3
     image: slam-benchmark/orb-slam3:latest
-    depends_on:
-      - ros-base
     volumes:
-      - /home/wadewilliams/Dev/shared/datasets/ISEC:/data/ISEC:ro
+      - ${DATASET_DIR:-/home/wadewilliams/Dev/shared/datasets/ISEC}:/data:ro
       - ./results:/results
-      - ./config:/config
-      - ./scripts:/scripts:ro
-    environment:
-      - ROS_MASTER_URI=http://localhost:11311
-    command: >
-      bash -c "source /opt/ros/noetic/setup.bash && 
-               python3 /scripts/run_algorithm.py --algorithm orb-slam3 --all-sequences"
+      - ./config/orb_slam3:/config:ro
+    stdin_open: true
+    tty: true
 
-  # VINS-Fusion: Visual-inertial SLAM
-  vins-fusion:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.vins-fusion
-    image: slam-benchmark/vins-fusion:latest
-    depends_on:
-      - ros-base
-    volumes:
-      - /home/wadewilliams/Dev/shared/datasets/ISEC:/data/ISEC:ro
-      - ./results:/results
-      - ./config:/config
-      - ./scripts:/scripts:ro
-    environment:
-      - ROS_MASTER_URI=http://localhost:11311
-    command: >
-      bash -c "source /opt/ros/noetic/setup.bash &&
-               source /catkin_ws/devel/setup.bash &&
-               python3 /scripts/run_algorithm.py --algorithm vins-fusion --all-sequences"
-
-  # Basalt: Visual-inertial SLAM with loop closure analysis
-  basalt:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.basalt
-    image: slam-benchmark/basalt:latest
-    depends_on:
-      - ros-base
-    volumes:
-      - /home/wadewilliams/Dev/shared/datasets/ISEC:/data/ISEC:ro
-      - ./results:/results
-      - ./config:/config
-      - ./scripts:/scripts:ro
-    command: >
-      python3 /scripts/run_algorithm.py --algorithm basalt --all-sequences
-
-  # DROID-SLAM: Deep learning-based SLAM (requires GPU)
+  # DROID-SLAM: Deep learning stereo SLAM (requires GPU)
   droid-slam:
     build:
       context: .
@@ -82,13 +75,11 @@ services:
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-    depends_on:
-      - ros-base
     volumes:
-      - /home/wadewilliams/Dev/shared/datasets/ISEC:/data/ISEC:ro
+      - ${DATASET_DIR:-/home/wadewilliams/Dev/shared/datasets/ISEC}:/data:ro
       - ./results:/results
-      - ./config:/config
-      - ./scripts:/scripts:ro
+      - ./config:/config:ro
+      - ./scripts/droid_slam:/scripts:ro
     deploy:
       resources:
         reservations:
@@ -96,62 +87,151 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
-    command: >
-      python3 /scripts/run_algorithm.py --algorithm droid-slam --all-sequences
+    stdin_open: true
+    tty: true
 
-  # LeGO-LOAM: LiDAR SLAM (used as pseudo ground-truth)
-  lego-loam:
+  # Basalt: Visual-inertial odometry
+  basalt:
     build:
       context: .
-      dockerfile: docker/Dockerfile.lego-loam
-    image: slam-benchmark/lego-loam:latest
-    depends_on:
-      - ros-base
+      dockerfile: docker/Dockerfile.basalt
+    image: slam-benchmark/basalt:latest
     volumes:
-      - /home/wadewilliams/Dev/shared/datasets/ISEC:/data/ISEC:ro
+      - ${DATASET_DIR:-/home/wadewilliams/Dev/shared/datasets/ISEC}:/data:ro
       - ./results:/results
-      - ./config:/config
-      - ./scripts:/scripts:ro
+      - ./config/basalt:/config:ro
+    stdin_open: true
+    tty: true
+
+  # VINS-Fusion: Visual-inertial SLAM
+  vins-fusion:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.vins-fusion
+    image: slam-benchmark/vins-fusion:latest
+    volumes:
+      - ${DATASET_DIR:-/home/wadewilliams/Dev/shared/datasets/ISEC}:/data:ro
+      - ./results:/results
+      - ./config/vins_fusion:/config:ro
     environment:
       - ROS_MASTER_URI=http://localhost:11311
-    command: >
-      bash -c "source /opt/ros/noetic/setup.bash &&
-               source /catkin_ws/devel/setup.bash &&
-               python3 /scripts/run_algorithm.py --algorithm lego-loam --all-sequences"
+    stdin_open: true
+    tty: true
 
-  # Evaluation service: Compute metrics and generate figures
-  evaluation:
+  # Kimera-VIO: MIT SPARK Lab visual-inertial odometry
+  kimera:
     build:
       context: .
-      dockerfile: docker/Dockerfile.evaluation
-    image: slam-benchmark/evaluation:latest
+      dockerfile: docker/Dockerfile.kimera
+    image: slam-benchmark/kimera:latest
     volumes:
+      - ${DATASET_DIR:-/home/wadewilliams/Dev/shared/datasets/ISEC}:/data:ro
       - ./results:/results
-      - ./config:/config
-      - ./scripts:/scripts:ro
-    command: python3 /scripts/evaluate.py --all
+      - ./config/kimera:/config:ro
+    environment:
+      - ROS_MASTER_URI=http://localhost:11311
+    stdin_open: true
+    tty: true
 
-  # Main benchmark runner (runs all algorithms sequentially)
-  slam-benchmark:
+  # ==========================================================================
+  # Semantic SLAM Algorithms
+  # ==========================================================================
+
+  # SuMa++: Semantic LiDAR SLAM (PRBonn)
+  suma-plus-plus:
     build:
       context: .
-      dockerfile: docker/Dockerfile.ros-base
-    image: slam-benchmark/ros-base:latest
+      dockerfile: docker/Dockerfile.suma-plus-plus
+    image: slam-benchmark/suma-plus-plus:latest
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - ROS_MASTER_URI=http://localhost:11311
     volumes:
-      - /home/wadewilliams/Dev/shared/datasets/ISEC:/data/ISEC:ro
+      - ${DATASET_DIR:-/home/wadewilliams/Dev/shared/datasets/ISEC}:/data:ro
       - ./results:/results
-      - ./config:/config
-      - ./scripts:/scripts:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: >
-      bash -c "echo 'Starting SLAM Benchmark Pipeline...' &&
-               echo 'Step 1: Running LeGO-LOAM for pseudo ground-truth...' &&
-               echo 'Step 2: Running ORB-SLAM3...' &&
-               echo 'Step 3: Running VINS-Fusion...' &&
-               echo 'Step 4: Running Basalt...' &&
-               echo 'Step 5: Running DROID-SLAM...' &&
-               echo 'Step 6: Running evaluation...' &&
-               python3 /scripts/run_benchmark.py"
+      - ./config/suma_plus_plus:/config:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    stdin_open: true
+    tty: true
+
+  # YOLOv8-ORB-SLAM3: ORB-SLAM3 with dynamic object filtering
+  yolo-orb-slam3:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.yolo-orb-slam3
+    image: slam-benchmark/yolo-orb-slam3:latest
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - ROS_MASTER_URI=http://localhost:11311
+    volumes:
+      - ${DATASET_DIR:-/home/wadewilliams/Dev/shared/datasets/ISEC}:/data:ro
+      - ./results:/results
+      - ./config/orb_slam3:/config:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    stdin_open: true
+    tty: true
+
+  # S-Graphs 2.0: Hierarchical SLAM with Floor-Level Constraints
+  # The ONLY algorithm specifically designed for multi-floor SLAM
+  s-graphs:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.s-graphs
+    image: slam-benchmark/s-graphs:latest
+    volumes:
+      - ${DATASET_DIR:-/home/wadewilliams/Dev/shared/datasets/ISEC}:/data:ro
+      - ./results:/results
+      - ./config/s_graphs:/config:ro
+    environment:
+      - ROS_MASTER_URI=http://localhost:11311
+    stdin_open: true
+    tty: true
+
+  # ==========================================================================
+  # Semantic Tools and Post-Processing
+  # ==========================================================================
+
+  # Semantic Tools: Foundation model VPR, geometric verification, evaluation
+  semantic-tools:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.semantic-tools
+    image: slam-benchmark/semantic-tools:latest
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    volumes:
+      - ${DATASET_DIR:-/home/wadewilliams/Dev/shared/datasets/ISEC}:/data:ro
+      - ./results:/results
+      - ./scripts/semantic_gating:/scripts/semantic_gating:ro
+      - ./scripts/evaluation:/scripts/evaluation:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    shm_size: '8gb'
+    stdin_open: true
+    tty: true
 
 networks:
   default:

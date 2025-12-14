@@ -1,0 +1,208 @@
+# SuMa++ Configuration for Ouster OS-128 LiDAR
+# =============================================
+# ISEC Multi-Floor Dataset
+#
+# Sensor: Ouster OS1-128 Rev 6
+# - 128 vertical channels
+# - 1024 horizontal resolution
+# - 45 degree vertical FOV (-22.5 to +22.5)
+# - 360 degree horizontal FOV
+# - 10 Hz frame rate
+#
+# Author: Wade Williams
+# Course: EECE5554 Robotic Sensing and Navigation
+
+# ---------------------------------------------
+# Sensor Configuration
+# ---------------------------------------------
+sensor:
+  type: "ouster"
+
+  # Ouster OS-128 specifications
+  num_channels: 128
+  num_horizontal: 1024
+  vertical_fov: 45.0  # degrees (-22.5 to +22.5)
+  horizontal_fov: 360.0
+
+  # Range limits (meters)
+  min_range: 0.5
+  max_range: 100.0
+
+  # Point cloud topic (remap from Ouster default)
+  # Original: /ouster/points
+  # SuMa expects: /velodyne_points or configured topic
+  pointcloud_topic: "/ouster/points"
+
+  # Frame IDs
+  lidar_frame: "os_sensor"
+  base_frame: "base_link"
+
+# ---------------------------------------------
+# Surfel Map Parameters
+# ---------------------------------------------
+map:
+  # Surfel parameters
+  surfel_radius: 0.05  # meters, size of surfels
+  surfel_confidence_threshold: 5
+
+  # Map resolution
+  resolution: 0.1  # meters per voxel
+
+  # Map bounds (ISEC building scale)
+  map_size_x: 200.0  # meters
+  map_size_y: 200.0
+  map_size_z: 50.0   # Multi-floor building
+
+  # Surfel stability
+  stable_surfel_age: 10  # frames before stable
+  unstable_surfel_removal: true
+
+# ---------------------------------------------
+# ICP Odometry Parameters
+# ---------------------------------------------
+odometry:
+  # ICP settings
+  icp_max_iterations: 50
+  icp_convergence_threshold: 0.0001
+
+  # Point-to-plane ICP
+  use_point_to_plane: true
+
+  # Robust kernel for outlier rejection
+  use_robust_kernel: true
+  robust_kernel_delta: 1.0
+
+  # Correspondence parameters
+  max_correspondence_distance: 1.0  # meters
+
+  # Motion model
+  use_motion_model: true
+  motion_model_weight: 0.1
+
+# ---------------------------------------------
+# Loop Closure Parameters
+# ---------------------------------------------
+loop_closure:
+  enabled: true
+
+  # Distance threshold for loop closure candidates
+  min_loop_distance: 10.0  # meters traveled before considering loop
+  max_loop_distance: 50.0  # maximum distance for loop closure
+
+  # ICP verification
+  icp_fitness_threshold: 0.3
+  icp_inlier_threshold: 0.5
+
+  # Pose graph optimization
+  optimize_every: 10  # frames
+
+  # IMPORTANT: Semantic floor gating
+  # Enable this to prevent cross-floor false loop closures
+  use_semantic_gating: true
+  semantic_floor_topic: "/floor_estimate"
+
+# ---------------------------------------------
+# Semantic Segmentation (RangeNet++)
+# ---------------------------------------------
+semantic:
+  enabled: true
+
+  # Model path (set via environment variable)
+  # model_path: ${RANGENET_MODEL_PATH}
+
+  # Inference settings
+  batch_size: 1
+
+  # Class configuration (SemanticKITTI classes)
+  # Dynamic classes to filter from odometry
+  dynamic_classes:
+    - 0   # unlabeled
+    - 1   # outlier
+    - 10  # car
+    - 11  # bicycle
+    - 13  # bus
+    - 15  # motorcycle
+    - 16  # on-rails
+    - 18  # truck
+    - 20  # other-vehicle
+    - 30  # person
+    - 31  # bicyclist
+    - 32  # motorcyclist
+
+  # Static structure classes (use for mapping)
+  static_classes:
+    - 40  # road
+    - 44  # parking
+    - 48  # sidewalk
+    - 49  # other-ground
+    - 50  # building
+    - 51  # fence
+    - 52  # other-structure
+    - 60  # lane-marking
+    - 70  # vegetation
+    - 71  # trunk
+    - 72  # terrain
+    - 80  # pole
+    - 81  # traffic-sign
+
+  # Indoor adaptation
+  # Note: SemanticKITTI is outdoor-focused
+  # Building class (50) will capture walls/structures
+  indoor_mode: true
+
+  # Confidence threshold for semantic labels
+  confidence_threshold: 0.5
+
+# ---------------------------------------------
+# Ground Plane Detection
+# ---------------------------------------------
+ground:
+  # Ground segmentation for Ouster OS-128
+  # Based on LeGO-LOAM parameters for ISEC
+
+  # Ground scan indices (lower rings)
+  ground_scan_start: 0
+  ground_scan_end: 30   # Use lower 30 rings for ground
+
+  # RANSAC parameters
+  ransac_iterations: 100
+  ransac_distance_threshold: 0.15  # meters
+
+  # Ground plane constraints
+  max_ground_slope: 10.0  # degrees
+  ground_height_threshold: 0.3  # meters above sensor
+
+# ---------------------------------------------
+# Output Configuration
+# ---------------------------------------------
+output:
+  # Trajectory format
+  trajectory_format: "TUM"  # timestamp tx ty tz qx qy qz qw
+
+  # Save options
+  save_trajectory: true
+  save_map: false  # Surfel map (large)
+  save_semantic_map: false
+
+  # Visualization (disabled for batch processing)
+  show_visualization: false
+  save_visualization: true
+  visualization_rate: 1.0  # Hz
+
+# ---------------------------------------------
+# Performance Tuning
+# ---------------------------------------------
+performance:
+  # Thread count
+  num_threads: 4
+
+  # GPU settings
+  use_gpu: true
+  gpu_device: 0
+
+  # Downsampling for performance
+  voxel_downsample: true
+  voxel_size: 0.1  # meters
+
+  # Skip frames for real-time performance
+  frame_skip: 0  # Process every frame for accuracy

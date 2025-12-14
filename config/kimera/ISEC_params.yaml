@@ -1,0 +1,334 @@
+# Kimera-VIO Configuration for ISEC Multi-Floor Dataset
+# NUFR-M3F Dataset (Kaveti et al., IEEE CASE 2023)
+#
+# Sensors:
+#   - FLIR Blackfly S (cam1-cam4): Stereo pairs for visual SLAM
+#   - VectorNav VN-100: IMU at 400Hz
+#   - Ouster OS-128: LiDAR at 10Hz (not used by Kimera-VIO)
+#
+# Author: Wade Williams
+# Course: EECE5554 Robotic Sensing and Navigation
+
+# =============================================================================
+# PIPELINE CONFIGURATION
+# =============================================================================
+Pipeline:
+  # VIO type: 0 = Mono, 1 = Stereo
+  vio_type: 1
+
+  # Backend type: 0 = VIO only, 1 = VIO + LCD (loop closure)
+  backend_type: 1
+
+  # Parallel execution
+  parallel_run: true
+
+  # Log output path
+  output_path: "/results/trajectories/kimera/"
+
+  # Visualization (set to false for headless operation)
+  visualize: false
+  visualize_3d: false
+
+# =============================================================================
+# CAMERA PARAMETERS (FLIR Blackfly S - cam1 and cam3 stereo pair)
+# =============================================================================
+Camera:
+  # Left camera (cam1) - Primary
+  left:
+    # Camera model: 0 = Pinhole, 1 = Equidistant
+    camera_model: 0
+
+    # Image dimensions
+    image_width: 1440
+    image_height: 1080
+
+    # Intrinsics [fx, fy, cx, cy]
+    # Values from ISEC calibration
+    intrinsics: [701.31, 701.54, 720.77, 544.12]
+
+    # Distortion model: 0 = Radial-Tangential (plumb_bob), 1 = Equidistant
+    distortion_model: 0
+
+    # Distortion coefficients [k1, k2, p1, p2, k3]
+    distortion_coefficients: [-0.0521, 0.0344, -0.00012, 0.00018, -0.0089]
+
+    # ROS topic
+    topic: "/cam1/image_raw"
+
+  # Right camera (cam3) - Secondary
+  right:
+    camera_model: 0
+    image_width: 1440
+    image_height: 1080
+    intrinsics: [700.89, 701.22, 719.45, 543.87]
+    distortion_model: 0
+    distortion_coefficients: [-0.0518, 0.0341, -0.00011, 0.00019, -0.0087]
+    topic: "/cam3/image_raw"
+
+  # Stereo baseline (meters) - cam1 to cam3
+  baseline: 0.12
+
+  # Stereo rectification
+  do_stereo_rectification: true
+
+# =============================================================================
+# IMU PARAMETERS (VectorNav VN-100)
+# =============================================================================
+IMU:
+  # ROS topic
+  topic: "/vectornav/IMU"
+
+  # IMU rate (Hz)
+  rate: 400.0
+
+  # Noise parameters (from VN-100 datasheet)
+  # Gyroscope noise density [rad/s/sqrt(Hz)]
+  gyroscope_noise_density: 0.0035
+
+  # Gyroscope random walk [rad/s^2/sqrt(Hz)]
+  gyroscope_random_walk: 0.00004
+
+  # Accelerometer noise density [m/s^2/sqrt(Hz)]
+  accelerometer_noise_density: 0.14
+
+  # Accelerometer random walk [m/s^3/sqrt(Hz)]
+  accelerometer_random_walk: 0.00086
+
+  # IMU integration covariance (used if no preintegration)
+  integration_sigma: 0.0
+
+  # Bias prior sigma
+  bias_acc_sigma: 0.1
+  bias_gyr_sigma: 0.01
+
+  # Gravity magnitude [m/s^2]
+  gravity_magnitude: 9.81
+
+# =============================================================================
+# EXTRINSICS (Camera-IMU Transform)
+# =============================================================================
+Extrinsics:
+  # T_cam_imu: Transform from IMU frame to left camera frame
+  # This is the pose of IMU in camera coordinates
+  # [R | t] as column-major 4x4 matrix
+  T_cam_imu:
+    - [1.0, 0.0, 0.0, 0.05]    # ~5cm offset in x
+    - [0.0, 1.0, 0.0, 0.0]
+    - [0.0, 0.0, 1.0, 0.0]
+    - [0.0, 0.0, 0.0, 1.0]
+
+  # Time offset: t_imu = t_cam + time_offset
+  time_offset_cam_imu: 0.0
+
+# =============================================================================
+# FRONTEND PARAMETERS (Feature Tracking)
+# =============================================================================
+Frontend:
+  # Feature detector: 0 = FAST, 1 = ORB, 2 = GFTT
+  feature_detector_type: 1
+
+  # Maximum features to track
+  max_features: 300
+
+  # Minimum features required
+  min_features: 100
+
+  # Feature quality threshold (for GFTT)
+  quality_level: 0.01
+
+  # Minimum distance between features (pixels)
+  min_distance: 15
+
+  # RANSAC threshold for geometric verification (pixels)
+  ransac_threshold: 2.0
+
+  # Use 2-point RANSAC for rotation-only estimation
+  use_2point_ransac: true
+
+  # Keyframe selection thresholds
+  keyframe_rotation_threshold: 0.15  # radians
+  keyframe_translation_threshold: 0.1  # meters
+  keyframe_time_threshold: 0.5  # seconds
+
+# =============================================================================
+# BACKEND PARAMETERS (Optimization)
+# =============================================================================
+Backend:
+  # Backend type: 0 = VIO, 1 = VIO with RegularVIO
+  type: 0
+
+  # Optimization frequency
+  optimize_every_n_frames: 5
+
+  # Number of iterations for each optimization
+  max_iterations: 10
+
+  # Marginalization scheme: 0 = None, 1 = SLAM
+  marginalization_scheme: 1
+
+  # Use IMU between frames
+  use_imu_between_frames: true
+
+  # Smart factor parameters
+  smart_noise_sigma: 1.0
+  rank_tolerance: 1.0
+  landmark_distance_threshold: 20.0  # meters
+  outlier_rejection_threshold: 3.0
+
+# =============================================================================
+# LOOP CLOSURE DETECTION (LCD)
+# =============================================================================
+LoopClosure:
+  # Enable loop closure detection
+  enable: true
+
+  # DBoW2 vocabulary path
+  vocabulary_path: "/catkin_ws/src/Kimera-VIO/vocabulary/ORBvoc.yml"
+
+  # Matching threshold for loop candidates
+  alpha: 0.3
+
+  # Minimum score for loop detection
+  min_score: 0.01
+
+  # Geometric verification threshold (inliers)
+  min_inliers: 25
+
+  # RANSAC threshold for PnP (pixels)
+  pnp_ransac_threshold: 3.0
+
+  # Minimum frames between query and match
+  min_temporal_distance: 50
+
+  # ==========================================================================
+  # SEMANTIC FLOOR GATING (Custom extension for multi-floor buildings)
+  # ==========================================================================
+  semantic_gating:
+    # Enable floor-based loop closure rejection
+    enable: true
+
+    # Floor detection method: 'imu' or 'lidar' or 'both'
+    floor_detection_method: 'imu'
+
+    # Expected floor height (meters) - ISEC building
+    floor_height: 3.5
+
+    # IMU z-acceleration threshold for elevator detection (m/s^2)
+    elevator_accel_threshold: 0.5
+
+    # Minimum elevator event duration (seconds)
+    min_elevator_duration: 3.0
+
+# =============================================================================
+# ROBUST POSE GRAPH OPTIMIZATION (Kimera-RPGO with GNC)
+# =============================================================================
+# Graduated Non-Convexity (GNC) handles 70-80% outlier measurements by
+# replacing non-convex robust cost functions with a sequence of surrogates,
+# starting convex and gradually increasing non-convexity.
+#
+# Critical for multi-floor SLAM where perceptual aliasing creates
+# correlated outliers that defeat standard RANSAC.
+# Reference: Yang et al., "Graduated Non-Convexity for Robust Spatial Perception"
+# =============================================================================
+RPGO:
+  # Enable robust optimization
+  enable: true
+
+  # Outlier rejection method: 0 = None, 1 = PCM (Pairwise Consistency Max), 2 = GNC
+  # GNC is strongly recommended for multi-floor environments
+  outlier_method: 2
+
+  # =========================================================================
+  # PCM (Pairwise Consistency Maximization) Parameters
+  # =========================================================================
+  # Used when outlier_method = 1
+  pcm_threshold: 0.1
+  pcm_odom_check: true
+
+  # =========================================================================
+  # GNC (Graduated Non-Convexity) Parameters
+  # =========================================================================
+  # Used when outlier_method = 2 (RECOMMENDED FOR MULTI-FLOOR)
+
+  # Initial mu parameter (controls convexity)
+  # Start with mu=1 (convex), decrease toward 0 (non-convex)
+  gnc_mu_initial: 1.0
+
+  # Convergence tolerance for GNC weights
+  gnc_weights_tolerance: 1e-4
+
+  # Maximum iterations for GNC
+  gnc_max_iterations: 100
+
+  # GNC shape parameter (controls robustness vs efficiency tradeoff)
+  # Higher = more robust to outliers but slower convergence
+  gnc_barcsq: 1.0
+
+  # Robust cost function type for GNC:
+  # 0 = TLS (Truncated Least Squares) - good for bounded noise
+  # 1 = GM (Geman-McClure) - smooth approximation
+  # 2 = Welsch - strong outlier rejection
+  gnc_cost_type: 1
+
+  # =========================================================================
+  # Multi-Floor Specific Settings
+  # =========================================================================
+
+  # Reject loop closures with translation error > threshold (meters)
+  max_loop_translation_error: 5.0
+
+  # Reject loop closures with rotation error > threshold (radians)
+  max_loop_rotation_error: 0.5
+
+  # Use odometry consistency check before adding loop closure
+  odom_consistency_check: true
+  odom_consistency_threshold: 2.0  # meters
+
+  # =========================================================================
+  # Optimization Parameters
+  # =========================================================================
+
+  # Optimizer type: 0 = GaussNewton, 1 = LM (Levenberg-Marquardt)
+  optimizer_type: 1
+
+  # LM parameters
+  lm_lambda_initial: 1e-5
+  lm_lambda_factor: 10.0
+
+  # Convergence criteria
+  relative_error_tolerance: 1e-6
+  absolute_error_tolerance: 1e-6
+  max_optimizer_iterations: 100
+
+# =============================================================================
+# OUTPUT CONFIGURATION
+# =============================================================================
+Output:
+  # Save trajectory in TUM format
+  save_tum_trajectory: true
+  tum_trajectory_path: "/results/trajectories/kimera/"
+
+  # Save KITTI format
+  save_kitti_trajectory: false
+
+  # Save full pose graph
+  save_pose_graph: true
+
+  # Save timing statistics
+  save_timing: true
+  timing_path: "/results/logs/"
+
+# =============================================================================
+# DEBUG & LOGGING
+# =============================================================================
+Debug:
+  # Verbosity level: 0 = Error, 1 = Warning, 2 = Info, 3 = Debug
+  verbosity: 2
+
+  # Log to file
+  log_to_file: true
+  log_path: "/results/logs/kimera/"
+
+  # Save debug images (tracking visualization)
+  save_debug_images: false
+  debug_image_path: "/results/debug/"

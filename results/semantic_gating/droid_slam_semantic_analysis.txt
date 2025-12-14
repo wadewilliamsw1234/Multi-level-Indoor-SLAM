@@ -1,0 +1,57 @@
+======================================================================
+DROID-SLAM SEMANTIC GATING ANALYSIS
+======================================================================
+
+TRAJECTORY SUMMARY
+--------------------------------------------------
+  Total poses: 1926
+  Sequences loaded: 4
+  Total duration: 1473.5 seconds
+
+FLOOR DISTRIBUTION
+--------------------------------------------------
+  Floor 1: 256 poses (13.3%)
+  Floor 2: 532 poses (27.6%)
+  Floor 4: 262 poses (13.6%)
+  Floor 5: 876 poses (45.5%)
+
+LOOP CLOSURE ANALYSIS (Simulated)
+--------------------------------------------------
+  Total candidates detected: 94672
+  Same-floor (valid): 35339
+  Cross-floor (perceptual aliasing): 59333
+  Cross-floor rate: 62.7%
+
+IMPACT ASSESSMENT
+--------------------------------------------------
+  Without semantic gating:
+    - 59333 false loop closures would occur
+    - These would cause trajectory collapse between floors
+
+  With floor-based semantic gating:
+    - 59333 false positives rejected
+    - 35339 true loop closures preserved
+
+EXAMPLE CROSS-FLOOR FALSE MATCHES
+--------------------------------------------------
+  1. Frame 0 (Floor 5) matched Frame 1120 (Floor 1)
+      Spatial distance: 1.93m
+      REJECTED: Different floors
+  2. Frame 0 (Floor 5) matched Frame 1375 (Floor 4)
+      Spatial distance: 2.00m
+      REJECTED: Different floors
+  3. Frame 0 (Floor 5) matched Frame 1638 (Floor 2)
+      Spatial distance: 1.88m
+      REJECTED: Different floors
+  4. Frame 0 (Floor 5) matched Frame 1875 (Floor 2)
+      Spatial distance: 1.83m
+      REJECTED: Different floors
+  5. Frame 0 (Floor 5) matched Frame 1122 (Floor 1)
+      Spatial distance: 1.50m
+      REJECTED: Different floors
+
+======================================================================
+NOTE: DROID-SLAM's learned correlation volumes provide better
+      local matching than traditional methods, but semantic
+      gating is still essential for multi-floor environments.
+======================================================================

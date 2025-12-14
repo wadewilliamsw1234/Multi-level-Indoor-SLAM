@@ -104,6 +104,15 @@ results/test_*/
 data/
 *.bag
 
+# EuRoC format data (large CSV files)
+results/euroc/
+
+# Research papers (too large, copyright)
+*.pdf
+
+# NumPy data files (can be regenerated)
+*.npz
+
 # ============================================
 # Temporary / Quarantine
 # ============================================
@@ -148,3 +157,81 @@ site/
 # Config files
 !config/**/*.yaml
 !config/**/*.json
+
+
+# ============================================
+# Model Weights (Deep Learning)
+# ============================================
+*.pt
+*.pth
+*.onnx
+*.trt
+*.engine
+*.weights
+checkpoints/
+
+# ============================================
+# Point Clouds
+# ============================================
+*.pcd
+*.ply
+*.las
+*.laz
+*.xyz
+
+# ============================================
+# Videos
+# ============================================
+*.mp4
+*.avi
+*.mkv
+*.mov
+
+# ============================================
+# Archive Directory (keep only README)
+# ============================================
+archive/*
+!archive/README.md
+
+# ============================================
+# Debug Sessions
+# ============================================
+debug_session_*/
+*_debug/
+
+# ============================================
+# DROID-SLAM Intermediate Files
+# ============================================
+results/trajectories/droid_slam/*.tum
+results/trajectories/droid_slam/*_timed.*
+results/trajectories/droid_slam/*_scaled.*
+results/trajectories/droid_slam/*_corrected.*
+
+# ============================================
+# VINS Results (didn't work, not needed)
+# ============================================
+results/trajectories/vins_fusion/
+
+# ============================================
+# Images Outside Figures (raw extractions)
+# ============================================
+results/images/
+images/
+*.pgm
+*.ppm
+
+# ============================================
+# ROS2 / db3 format
+# ============================================
+*.db3
+*.db3-shm
+*.db3-wal
+
+# ============================================
+# Large Compressed Files
+# ============================================
+*.tar
+*.tar.gz
+*.tar.xz
+*.zip
+!*.yaml.zip

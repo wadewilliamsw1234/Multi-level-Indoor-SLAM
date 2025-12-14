@@ -1,0 +1,92 @@
+%YAML:1.0
+
+#--------------------------------------------------------------------------------------------
+# ISEC Dataset - VINS-Fusion Configuration
+# SANITY CHECK: Use Ouster IMU which is already in FLU convention
+# 
+# Ouster IMU showed az = +9.73 (positive = Z-up = FLU)
+# Using ORIGINAL extrinsics since Ouster IMU position is similar to VectorNav
+#--------------------------------------------------------------------------------------------
+
+#common parameters
+imu: 1
+num_of_cam: 2
+
+# Use Ouster IMU - already in FLU convention!
+imu_topic: "/ouster/imu"
+image0_topic: "/camera_array/cam1/image_raw"
+image1_topic: "/camera_array/cam3/image_raw"
+output_path: "/results/vins_fusion"
+
+cam0_calib: "cam0.yaml"
+cam1_calib: "cam1.yaml"
+image_width: 720
+image_height: 540
+
+#--------------------------------------------------------------------------------------------
+# Extrinsics: ORIGINAL VALUES
+# Note: These are for VectorNav IMU position, Ouster IMU may be slightly different
+# But close enough for a sanity check
+#--------------------------------------------------------------------------------------------
+estimate_extrinsic: 0
+
+body_T_cam0: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [-0.0327966961, -0.0071500981, 0.9994364676, 0.0553758892,
+          0.9994453607, 0.0055430833, 0.0328366438, -0.0828510910,
+          -0.0057747448, 0.9999590743, 0.0069643376, -0.0044696646,
+          0.0, 0.0, 0.0, 1.0]
+
+body_T_cam1: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [-0.0351970137, -0.0028466761, 0.9993763389, 0.0599680647,
+          0.9993760849, 0.0028360152, 0.0352050830, -0.4111960895,
+          -0.0029344639, 0.9999919267, 0.0027450807, -0.0034074877,
+          0.0, 0.0, 0.0, 1.0]
+
+multiple_thread: 1
+
+#feature traker paras
+max_cnt: 150
+min_dist: 25
+freq: 10
+F_threshold: 1.0
+show_track: 0
+flow_back: 1
+
+#optimization parameters
+max_solver_time: 0.04
+max_num_iterations: 8
+keyframe_parallax: 10.0
+
+#--------------------------------------------------------------------------------------------
+# IMU parameters - Using typical Ouster IMU values
+# Ouster MEMS IMU is lower quality than VectorNav, so higher noise
+#--------------------------------------------------------------------------------------------
+acc_n: 0.04      # Accelerometer noise density
+gyr_n: 0.004     # Gyroscope noise density  
+acc_w: 0.0004    # Accelerometer random walk
+gyr_w: 0.00004   # Gyroscope random walk
+g_norm: 9.81007
+
+#loop closure parameters
+loop_closure: 0
+
+#unsynchronization parameters
+estimate_td: 1
+td: 0.0
+
+#visualization parameters
+save_image: 0
+
+
+
+
+
+
+
+

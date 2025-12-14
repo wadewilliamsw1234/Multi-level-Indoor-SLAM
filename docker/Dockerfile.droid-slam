@@ -1,0 +1,52 @@
+# syntax=docker/dockerfile:1.4
+# DROID-SLAM Docker Image
+
+FROM nvidia/cuda:11.8.0-devel-ubuntu20.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV CUDA_HOME=/usr/local/cuda
+ENV PATH=${CUDA_HOME}/bin:${PATH}
+ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
+ENV MAX_JOBS=8
+ENV TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0;8.6;8.9"
+
+# Install system dependencies
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get update && apt-get install -y \
+    git cmake build-essential libgl1-mesa-glx libglib2.0-0 \
+    libsm6 libxext6 libxrender-dev libglew-dev libeigen3-dev \
+    libopencv-dev python3-pip python3-dev wget unzip ffmpeg ninja-build
+
+# Pip with cache mount
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip3 install --upgrade pip setuptools wheel
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip3 install torch==2.0.1 torchvision==0.15.2 --index-url https://download.pytorch.org/whl/cu118
+
+# Install torch-scatter for CUDA 11.8 + PyTorch 2.0
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip3 install torch-scatter -f https://data.pyg.org/whl/torch-2.0.1+cu118.html
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip3 install numpy scipy opencv-python matplotlib tqdm tensorboard gdown evo pyyaml
+
+# Clone DROID-SLAM
+WORKDIR /opt
+RUN git clone --recursive https://github.com/princeton-vl/DROID-SLAM.git
+
+# Build lietorch from submodule
+WORKDIR /opt/DROID-SLAM/thirdparty/lietorch
+RUN --mount=type=cache,target=/root/.cache/pip pip3 install .
+
+# Build DROID-SLAM
+WORKDIR /opt/DROID-SLAM
+RUN --mount=type=cache,target=/root/.cache/pip pip3 install .
+
+# Download model
+RUN mkdir -p /opt/DROID-SLAM/models && \
+    gdown --id 1PpqVt1H4maBa_GbPJp4NwxRsd9jk-elh -O /opt/DROID-SLAM/models/droid.pth
+
+WORKDIR /workspace
+COPY scripts/droid_slam/ /opt/scripts/
+CMD ["/bin/bash"]

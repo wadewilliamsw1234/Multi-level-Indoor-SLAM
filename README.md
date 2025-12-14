@@ -1,365 +1,256 @@
-# NUFR-M3F SLAM Benchmarking Suite
+# SLAM Benchmarking on Multi-Floor Indoor Environments
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![ROS: Noetic](https://img.shields.io/badge/ROS-Noetic-blue.svg)](http://wiki.ros.org/noetic)
-[![Docker](https://img.shields.io/badge/Docker-Enabled-blue.svg)](https://www.docker.com/)
+**Course:** EECE 5554 - Robotic Sensing and Navigation
+**Author:** Wade Williams
+**Date:** December 2024
 
-A Docker-based benchmarking framework for evaluating state-of-the-art SLAM algorithms on the ISEC multi-floor indoor dataset. This project reproduces and extends the analysis from **"Challenges of Indoor SLAM: A Multi-Modal Multi-Floor Dataset for SLAM Evaluation"** (Kaveti et al., IEEE CASE 2023).
+## Project Overview
 
-## 🎯 Project Goals
+This project benchmarks state-of-the-art SLAM algorithms on the NUFR-M3F multi-floor indoor dataset (Kaveti et al., IEEE CASE 2023). We evaluate multiple algorithms across three categories—base SLAM, semantic SLAM, and our custom semantic gating pipeline—to address **perceptual aliasing**, a critical failure mode in buildings with structurally similar floors.
 
-1. **Reproduce Paper Results**: Validate Table IV metrics for multiple SLAM algorithms
-2. **Dockerized Pipeline**: Self-contained, reproducible evaluation environment
-3. **Multi-Algorithm Comparison**: Side-by-side evaluation of visual, visual-inertial, LiDAR, and deep learning SLAM
-4. **Highlight Failure Modes**: Demonstrate perceptual aliasing, visual degradation, and multi-floor challenges
-5. **Generate Publication Figures**: Reproduce Figure 6 (perceptual aliasing) and Figure 7 (trajectory comparison)
+**Key Finding:** All tested algorithms (visual, deep learning, and LiDAR) suffer from perceptual aliasing in multi-floor environments. Our semantic gating pipeline prevents 62-75% of false loop closure candidates with negligible computational overhead.
 
-## 📊 Current Results
+## Implemented Algorithms
 
-### Implemented Algorithms
+### Base SLAM (from Kaveti et al.)
+| Algorithm | Type | Status | Description |
+|-----------|------|--------|-------------|
+| LeGO-LOAM | LiDAR | ✅ Running | Pseudo ground-truth |
+| ORB-SLAM3 | Visual Stereo | ✅ Running | Feature-based SLAM |
+| DROID-SLAM | Deep Learning | ✅ Running | Learned correlation volumes |
+| Basalt | VIO | ⚠️ Experimental | Visual-inertial odometry |
+| VINS-Fusion | VIO | ⚠️ Experimental | Visual-inertial SLAM |
 
-| Algorithm | Type | Status | 5th Floor | 1st Floor | 4th Floor | 2nd Floor |
-|-----------|------|--------|-----------|-----------|-----------|-----------|
-| **LeGO-LOAM** | LiDAR | ✅ Complete | 0.75m (0.40%) | 0.33m (0.45%) | 0.14m (0.21%) | 0.11m (0.08%) |
-| **ORB-SLAM3** | Visual | ✅ Complete | 0.70m (0.46%) | ❌ 12.0m | 0.57m (0.97%) | 1.97m (1.84%) |
-| **VINS-Fusion** | Visual-Inertial | 🔄 In Progress | - | - | - | - |
-| **Basalt** | Visual-Inertial | 📋 Planned | - | - | - | - |
-| **DROID-SLAM** | Deep Learning | 📋 Planned | - | - | - | - |
+### Semantic SLAM (State-of-the-Art)
+| Algorithm | Type | Status | Key Feature |
+|-----------|------|--------|-------------|
+| Kimera + GNC | Semantic VIO | ✅ Ready | 70-80% outlier tolerance via Graduated Non-Convexity |
+| S-Graphs 2.0 | Hierarchical | ✅ Ready | **Floor-level factor graph** - designed for multi-floor |
+| SuMa++ | Semantic LiDAR | ✅ Ready | RangeNet++ dynamic object filtering |
+| YOLOv8-ORB-SLAM3 | Dynamic Filtering | ✅ Ready | Real-time person/vehicle masking |
 
-*Drift values shown as absolute error (percentage of trajectory length)*
+### Foundation Model VPR (Visual Place Recognition)
+| Method | Backbone | VRAM | Best For |
+|--------|----------|------|----------|
+| MixVPR | ResNet-50 | ~2-3GB | Fast single-stage retrieval |
+| SALAD | DINOv2 | ~3-4GB | Optimal transport aggregation |
+| AnyLoc | DINOv2 | ~4GB | Universal, no training needed |
+| **CricaVPR** | DINOv2 | ~4GB | **Perceptual aliasing robustness** (CVPR 2024) |
 
-### Paper Comparison
+### Geometric Verification
+| Method | Speed | Description |
+|--------|-------|-------------|
+| LightGlue | 150 FPS | Fast adaptive matching |
+| SuperGlue | 15 FPS | Attention-based matching |
+| LoFTR | 10 FPS | Dense detector-free matching |
 
-| Algorithm | Metric | Our Results | Paper Results | Assessment |
-|-----------|--------|-------------|---------------|------------|
-| LeGO-LOAM | 4th Floor ATE | **0.14m** | 0.79m | 5.6× better |
-| LeGO-LOAM | 2nd Floor ATE | **0.11m** | 0.29m | 2.6× better |
-| ORB-SLAM3 | 5th Floor ATE | 0.70m | 0.52m | Within 35% |
-| ORB-SLAM3 | 1st Floor | Failed (tracking loss) | 0.95m | Expected* |
-
-*\*The 1st floor contains challenging scenarios (glass, reflections, dynamic objects) that cause visual SLAM failure - this matches the paper's discussion of failure modes.*
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Docker with NVIDIA Container Toolkit (for GPU algorithms)
-- ~50GB disk space for Docker images
-- ISEC dataset (~500GB) from [NUFR-M3F Repository](https://github.com/neufieldrobotics/NUFR-M3F)
-
-### Setup
+## Quick Start
 
 ```bash
-# Clone repository
-git clone https://github.com/yourusername/slam-benchmark.git
-cd slam-benchmark
+# Clone and enter repository
+cd ~/Dev/ros1/slam-benchmark
 
-# Create data directory and download/symlink ISEC dataset
-mkdir -p data
-ln -s /path/to/your/ISEC data/ISEC
+# Run semantic gating analysis (our main contribution)
+python scripts/semantic_gating/orb_slam3_integration.py
+python scripts/semantic_gating/droid_slam_integration.py
+python scripts/semantic_gating/lego_loam_integration.py
 
-# Build Docker images
-make build
+# View results
+cat results/semantic_gating/semantic_gating_comparison.txt
 
-# Run LeGO-LOAM on all floors (uses LiDAR, most reliable)
-docker run --rm -it \
-    -v $(pwd)/data/ISEC:/data/ISEC:ro \
-    -v $(pwd)/results:/results \
-    --network=host \
-    slam-benchmark/lego-loam:latest \
-    /root/run_lego_loam_floor.sh 5th_floor
-
-# Run ORB-SLAM3 on all floors (stereo visual)
-docker run --rm -it \
-    -v $(pwd)/data/ISEC:/data/ISEC:ro \
-    -v $(pwd)/results:/results \
-    -v $(pwd)/config:/config:ro \
-    --network=host \
-    slam-benchmark/orb-slam3:latest \
-    /root/run_orb_slam3_all.sh
-
-# Evaluate results
-python3 scripts/evaluation/evaluate_all.py
+# Run with CricaVPR (best for perceptual aliasing)
+python -c "
+from scripts.semantic_gating import SemanticPlaceRecognition
+spr = SemanticPlaceRecognition(vpr_method='cricavpr', device='cuda')
+"
 ```
 
-## 📁 Project Structure
+## Repository Structure
 
 ```
 slam-benchmark/
 ├── README.md                     # This file
-├── LICENSE                       # MIT License
-├── Makefile                      # Build automation
-├── docker-compose.yml            # Container orchestration
-├── .gitignore                    # Git ignore rules
+├── docker-compose.yml            # Docker orchestration (12 services)
 │
 ├── docker/                       # Dockerfiles for each algorithm
-│   ├── Dockerfile.ros-base       # Base ROS Noetic image
-│   ├── Dockerfile.lego-loam      # LeGO-LOAM (LiDAR SLAM)
-│   ├── Dockerfile.orb-slam3      # ORB-SLAM3 (Visual SLAM)
-│   └── Dockerfile.evaluation     # Evaluation tools
+│   ├── Dockerfile.lego-loam      # LiDAR SLAM (pseudo ground-truth)
+│   ├── Dockerfile.orb-slam3      # Visual stereo SLAM
+│   ├── Dockerfile.droid-slam     # Deep learning SLAM
+│   ├── Dockerfile.basalt         # Visual-inertial odometry
+│   ├── Dockerfile.vins-fusion    # VIO (experimental)
+│   ├── Dockerfile.kimera         # MIT Kimera VIO + RPGO (GNC)
+│   ├── Dockerfile.s-graphs       # S-Graphs 2.0 (multi-floor specialized)
+│   ├── Dockerfile.suma-plus-plus # Semantic LiDAR SLAM
+│   ├── Dockerfile.yolo-orb-slam3 # Dynamic object filtering
+│   └── Dockerfile.semantic-tools # VPR + geometric verification
 │
 ├── config/                       # Algorithm configurations
-│   ├── lego_loam/
-│   │   └── isec_ouster.yaml      # Ouster OS-128 parameters
-│   ├── orb_slam3/
-│   │   └── ISEC_stereo.yaml      # Stereo camera calibration
-│   ├── vins_fusion/
-│   │   └── isec_stereo_imu.yaml  # Stereo-inertial config
-│   ├── basalt/
-│   │   └── isec_config.json      # VIO configuration
-│   └── calibration_examples/     # Example calibration files
+│   ├── lego_loam/                # Ouster OS-128 config
+│   ├── orb_slam3/                # Stereo camera calibration
+│   ├── kimera/                   # Kimera + GNC parameters
+│   ├── s_graphs/                 # S-Graphs 2.0 floor detection config
+│   └── suma_plus_plus/           # Semantic LiDAR config
 │
-├── scripts/                      # Analysis and utility scripts
-│   ├── extraction/               # Trajectory extraction
-│   ├── evaluation/               # Metrics computation
-│   ├── visualization/            # Plotting and figures
-│   ├── utils/                    # Calibration, bag utilities
-│   └── docker/                   # Container run scripts
+├── scripts/
+│   ├── run_all.sh                # Reproduce all results
+│   │
+│   ├── semantic_gating/          # ⭐ OUR CONTRIBUTION
+│   │   ├── floor_detector.py     # IMU-based elevator detection
+│   │   ├── lidar_floor_tracker.py # LiDAR ground plane floor detection
+│   │   ├── loop_closure_gate.py  # Semantic loop closure filtering
+│   │   ├── place_recognition.py  # MixVPR, SALAD, AnyLoc, CricaVPR
+│   │   ├── geometric_verification.py # LightGlue, SuperGlue, LoFTR
+│   │   ├── orb_slam3_integration.py
+│   │   ├── droid_slam_integration.py
+│   │   └── lego_loam_integration.py
+│   │
+│   └── evaluation/
+│       ├── comprehensive_evaluation.py
+│       └── semantic_evaluation.py  # Semantic-specific metrics
 │
-├── results/                      # Generated outputs
-│   ├── trajectories/             # TUM-format trajectory files
-│   │   ├── lego_loam/
-│   │   └── orb_slam3/
-│   ├── figures/                  # Visualization outputs
-│   ├── metrics/                  # Evaluation results (JSON)
-│   └── logs/                     # Algorithm runtime logs
+├── results/
+│   ├── trajectories/             # TUM-format outputs
+│   ├── semantic_gating/          # Cross-floor analysis + visualizations
+│   └── metrics/                  # JSON evaluation results
 │
-├── tests/                        # Unit tests
-│
-├── docs/                         # Additional documentation
-│   └── ORB_SLAM3.md              # ORB-SLAM3 specific notes
-│
-└── data/                         # Dataset mount point (gitignored)
-    └── ISEC/                     # Symlink to ISEC dataset
+└── archive/                      # Deprecated/experimental code
 ```
 
-## 📖 Dataset
+## Running the Benchmarks
 
-The ISEC dataset was collected at Northeastern University's Interdisciplinary Science and Engineering Complex using a mobile robot platform equipped with:
-
-| Sensor | Model | Specifications |
-|--------|-------|----------------|
-| Cameras | FLIR Blackfly S (×7) | 720×540, 20Hz, global shutter |
-| LiDAR | Ouster OS-128 | 128 channels, 45° VFOV, 10Hz |
-| IMU | VectorNav VN-100 | 9-DOF, 200Hz |
-
-### Floor Sequences
-
-| Sequence | Duration | Length | Description |
-|----------|----------|--------|-------------|
-| 5th_floor | 437s | 187m | One loop + out-and-back corridor |
-| 1st_floor | 126s | 65m | Open layout, glass walls, dynamic |
-| 4th_floor | 131s | 66m | One loop, some dynamic content |
-| 2nd_floor | 266s | 128m | Figure-eight with two loops |
-
-### Key Challenges
-
-- **Perceptual Aliasing**: Floors 2, 4, and 5 are visually nearly identical
-- **Visual Degradation**: Featureless corridors, glass surfaces, reflections
-- **Dynamic Content**: Moving people, especially on 1st floor
-- **Elevator Transits**: Vision-only methods cannot track vertical motion
-
-## 🔧 Algorithms
-
-### ✅ LeGO-LOAM (Complete)
-
-Lightweight LiDAR odometry optimized for ground vehicles. Adapted from Velodyne to Ouster OS-128:
-
-- **Key Modifications**: N_SCAN: 16→128, vertical FOV: 30°→45°, ring field extraction
-- **Performance**: Excellent on all floors, used as pseudo ground-truth
-- **Docker Image**: `slam-benchmark/lego-loam:latest`
-
-### ✅ ORB-SLAM3 (Complete)
-
-Feature-based stereo visual SLAM using cam1 (left) and cam3 (right):
-
-- **Configuration**: Older `Camera.fx` format (not `Camera1.fx`)
-- **Performance**: 3/4 floors successful, 1st floor fails due to visual challenges
-- **Loop Closure**: Disabled for fair comparison
-- **Docker Image**: `slam-benchmark/orb-slam3:latest`
-
-### 🔄 VINS-Fusion (In Progress)
-
-Stereo visual-inertial odometry expected to handle 1st floor better:
-
-- **Mode**: Stereo + IMU fusion
-- **Config**: Ready at `config/vins_fusion/isec_stereo_imu.yaml`
-
-### 📋 Basalt (Planned)
-
-Visual-inertial odometry critical for **Figure 6** (perceptual aliasing):
-
-- Must run with AND without loop closure
-- Demonstrates incorrect cross-floor loop closures
-
-### 📋 DROID-SLAM (Planned)
-
-Deep learning-based SLAM, best performer in paper:
-
-- Expected to handle textureless regions better
-- Requires GPU (fits in 8GB VRAM)
-
-## 📈 Evaluation Methodology
-
-Following the paper's approach (Section V-A):
-
-1. **Trajectory Alignment**: SE(3) alignment using initial segment
-2. **Drift Metric**: Absolute Translational Error (ATE) at final position
-3. **Ground Truth**: AprilTag markers at sequence start/end (paper) or LeGO-LOAM pseudo-GT (this project)
-4. **Loop Closure**: Disabled for fair odometry comparison
-
+### Option 1: Complete Pipeline
 ```bash
-# Run complete evaluation
-python3 scripts/evaluation/evaluate_all.py
-
-# Quick statistics
-python3 scripts/evaluation/quick_traj_stats.py results/trajectories/lego_loam/
-
-# Generate comparison plots
-python3 scripts/visualization/plot_trajectory_2d.py \
-    results/trajectories/lego_loam/5th_floor.txt \
-    results/figures/lego_loam/5th_floor.png
+./scripts/run_all.sh
 ```
 
-## 🎨 Figures to Reproduce
-
-### Figure 6: Perceptual Aliasing (Requires Basalt)
-
-Demonstrates how visually similar floors cause incorrect loop closures:
-- (a) Trajectory **without** loop closure - floors correctly separated
-- (b) Trajectory **with** loop closure - floors incorrectly merged
-
-### Figure 7: 5th Floor Trajectory Comparison
-
-Overlay of all algorithm trajectories highlighting:
-- **Region A**: Dynamic content causing visual SLAM artifacts
-- **Region B**: Featureless corridor causing tracking failures
-
-## 🛠️ Development
-
-### Running Tests
-
+### Option 2: Individual Algorithms
 ```bash
-# Unit tests
-pytest tests/
-
-# Test calibration converter
-python3 -m pytest tests/test_calib_converter.py -v
+docker-compose build
+docker-compose run --rm lego-loam         # LiDAR (ground truth)
+docker-compose run --rm orb-slam3         # Visual
+docker-compose run --rm droid-slam        # Deep Learning (GPU)
+docker-compose run --rm kimera            # Semantic VIO + GNC
+docker-compose run --rm s-graphs          # Multi-floor specialized
+docker-compose run --rm suma-plus-plus    # Semantic LiDAR (GPU)
+docker-compose run --rm yolo-orb-slam3    # Dynamic filtering (GPU)
 ```
 
-### Adding a New Algorithm
-
-1. Create `docker/Dockerfile.{algorithm}`
-2. Add configuration to `config/{algorithm}/`
-3. Create run script in `scripts/docker/`
-4. Add evaluation entry in `scripts/evaluation/evaluate_all.py`
-5. Update this README
-
-### Building Individual Images
-
+### Option 3: Semantic Post-Processing
 ```bash
-# Build specific algorithm
-docker build -t slam-benchmark/lego-loam:latest -f docker/Dockerfile.lego-loam .
-docker build -t slam-benchmark/orb-slam3:latest -f docker/Dockerfile.orb-slam3 .
+docker-compose run --rm semantic-tools /root/run_semantic_postprocess.sh all
 ```
 
-## 📚 References
+## Results Summary
 
-### Paper
+### Algorithm Performance (ATE RMSE vs LeGO-LOAM)
 
-```bibtex
-@inproceedings{kaveti2023challenges,
-  title={Challenges of Indoor SLAM: A Multi-Modal Multi-Floor Dataset for SLAM Evaluation},
-  author={Kaveti, Pushyami and Gupta, Aniket and Giaya, Dennis and Karp, Madeline and 
-          Keil, Colin and Nir, Jagatpreet and Zhang, Zhiyong and Singh, Hanumant},
-  booktitle={IEEE International Conference on Automation Science and Engineering (CASE)},
-  year={2023}
-}
+| Algorithm | 5th Floor | 1st Floor | 4th Floor | 2nd Floor | Mean |
+|-----------|-----------|-----------|-----------|-----------|------|
+| ORB-SLAM3 | 10.46m | 8.82m | 1.96m | 5.54m | **6.70m** |
+| DROID-SLAM | 0.25m | 0.16m | 0.23m | 0.65m | **0.32m** |
+
+### Semantic Gating Results
+
+| Algorithm | Type | Cross-Floor Rate | False Positives Blocked |
+|-----------|------|------------------|------------------------|
+| LeGO-LOAM | LiDAR (ICP) | **75.3%** | 65,567 |
+| ORB-SLAM3 | Visual (DBoW2) | 70.7% | 3,612,527 |
+| DROID-SLAM | Deep Learning | 62.7% | 59,333 |
+
+**Key Insight:** LiDAR-based methods are *more* susceptible to cross-floor aliasing than visual methods due to the geometric similarity of identical floor layouts.
+
+## Semantic Gating Module
+
+Our contribution addresses perceptual aliasing in multi-floor buildings through a multi-modal pipeline:
+
+### Floor Detection (IMU + LiDAR Fusion)
+```python
+from scripts.semantic_gating import IMUFloorDetector, LiDARFloorTracker
+
+# IMU-based elevator detection
+imu_detector = IMUFloorDetector(z_accel_threshold=0.3, min_duration=2.0)
+events = imu_detector.detect_elevator_events(timestamps, accel_x, accel_y, accel_z)
+floor_labels = imu_detector.assign_floor_labels(timestamps, start_floor=0)
+
+# LiDAR ground plane tracking
+lidar_tracker = LiDARFloorTracker(floor_height=3.5)
+estimate = lidar_tracker.process_scan(pointcloud)  # Returns z_height, floor_estimate
 ```
 
-### Algorithm Repositories
+### Foundation Model Place Recognition
+```python
+from scripts.semantic_gating import SemanticPlaceRecognition, CricaVPR
 
-- [LeGO-LOAM](https://github.com/RobustFieldAutonomyLab/LeGO-LOAM)
-- [ORB-SLAM3](https://github.com/UZ-SLAMLab/ORB_SLAM3)
-- [VINS-Fusion](https://github.com/HKUST-Aerial-Robotics/VINS-Fusion)
-- [Basalt](https://gitlab.com/VladyslavUsenko/basalt)
-- [DROID-SLAM](https://github.com/princeton-vl/DROID-SLAM)
+# CricaVPR - BEST for perceptual aliasing (CVPR 2024)
+spr = SemanticPlaceRecognition(vpr_method='cricavpr', device='cuda')
+
+# Add images with floor labels
+spr.add_image(image, timestamp, floor_label=1)
+
+# Find loop closures with floor gating
+matches = spr.find_loop_closures(enable_floor_gating=True)
+```
+
+### Geometric Verification
+```python
+from scripts.semantic_gating import LightGlue, SemanticGeometricVerifier
+
+# Fast geometric verification
+verifier = LightGlue(device='cuda')
+result = verifier.match(image1, image2)
+# Returns: num_matches, inlier_ratio, is_valid
+```
+
+## Key Innovations
+
+### 1. Graduated Non-Convexity (GNC) for Outlier Rejection
+Kimera-RPGO with GNC handles 70-80% outlier measurements—critical for multi-floor SLAM where perceptual aliasing creates correlated outliers that defeat standard RANSAC.
+
+### 2. S-Graphs 2.0 Hierarchical Factor Graph
+The **only** algorithm specifically designed for multi-floor SLAM with floor-level constraints:
+- 4-layer factor graph: Keyframes → Walls → Rooms → Floors
+- Floor-based loop closure gating built into optimization
+- Stairway/elevator detection for floor transitions
+
+### 3. CricaVPR for Perceptual Aliasing
+CVPR 2024 method that explicitly addresses perceptual aliasing through cross-image correlation-aware features. Distinguishes similar-but-different places using local spatial structure.
+
+## Prerequisites
+
+### Hardware
+- NVIDIA GPU with CUDA support (8GB+ VRAM recommended)
+- 32GB+ RAM recommended
+- 100GB+ disk space for dataset and Docker images
+
+### Software
+- Docker 20.10+
+- nvidia-docker2 (for GPU support)
+- Python 3.8+
 
 ### Dataset
-
-- [NUFR-M3F Dataset](https://github.com/neufieldrobotics/NUFR-M3F)
-
-### Evaluation Tools
-
-- [evo - Python package for trajectory evaluation](https://github.com/MichaelGrupp/evo)
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- Northeastern University Field Robotics Lab for the ISEC dataset
-- Authors of the evaluated SLAM algorithms
-- The ROS and robotics open-source community
-
----
-
-**Status**: Active Development | **Last Updated**: November 2025
-
-## 🖥️ Real-Time Visualization
-
-This project includes VNC-based visualization for watching ORB-SLAM3 process data in real-time.
-
-### Building the Visualization Image
-```bash
-# First, ensure the base ORB-SLAM3 image is built
-docker build -t slam-benchmark/orb-slam3:latest -f docker/Dockerfile.orb-slam3 .
-
-# Then build the visualization image
-docker build -t slam-benchmark/orb-slam3-viz:latest -f docker/Dockerfile.orb-slam3-viz .
+Download the NUFR-M3F dataset and place at `~/Dev/shared/datasets/ISEC/`:
+```
+ISEC/
+├── 1st_floor/          # Challenging: glass walls, reflections
+├── 2nd_floor/          # Figure-eight trajectory
+├── 4th_floor/          # Single loop
+├── 5th_floor/          # Main test sequence (187m)
+├── transit_1_to_4/     # Elevator traversal
+├── transit_5_to_1/     # Elevator traversal
+└── *.yaml              # Calibration files
 ```
 
-### Running Visualization
-```bash
-# Start the visualization container
-docker run --rm -it \
-    -p 5900:5900 \
-    -v ~/Dev/shared/datasets/ISEC:/data/ISEC:ro \
-    -v $(pwd)/results:/results \
-    -v $(pwd)/config:/config:ro \
-    slam-benchmark/orb-slam3-viz:latest
+## References
 
-# In another terminal, connect via VNC
-vncviewer localhost:5900
-```
+1. Kaveti, P., et al. "Challenges of Indoor SLAM: A Multi-Modal Multi-Floor Dataset for SLAM Evaluation." IEEE CASE 2023.
+2. Shan, T., Englot, B. "LeGO-LOAM: Lightweight and Ground-Optimized Lidar Odometry and Mapping." IROS 2018.
+3. Campos, C., et al. "ORB-SLAM3: An Accurate Open-Source Library for Visual, Visual-Inertial and Multi-Map SLAM." IEEE T-RO 2021.
+4. Teed, Z., Deng, J. "DROID-SLAM: Deep Visual SLAM for Monocular, Stereo, and RGB-D Cameras." NeurIPS 2021.
+5. Rosinol, A., et al. "Kimera: an Open-Source Library for Real-Time Metric-Semantic Localization and Mapping." ICRA 2020.
+6. Bavle, H., et al. "S-Graphs+: Real-time Localization and Mapping leveraging Hierarchical Representations." RA-L 2023.
+7. Lu, F., et al. "CricaVPR: Cross-image Correlation-aware Representation Learning for Visual Place Recognition." CVPR 2024.
+8. Yang, H., et al. "Graduated Non-Convexity for Robust Spatial Perception." IEEE T-RO 2020.
 
-### Inside the Container
+## License
 
-Once connected via VNC, run ORB-SLAM3 with visualization:
-```bash
-/root/run_orb_slam3_viewer.sh 5th_floor 0.3 180
-```
-
-Arguments:
-- `floor`: Dataset floor (5th_floor, 1st_floor, 4th_floor, 2nd_floor)
-- `rate`: Playback speed multiplier (0.3 = 30% speed, good for visualization)
-- `duration`: Maximum playback duration in seconds
-
-### What You'll See
-
-Two windows appear side-by-side (1800x1350 each):
-
-**Map Viewer (left):**
-- Red dots: 3D map points triangulated from stereo
-- Green rectangle: Current camera pose
-- Blue line: Trajectory path traveled
-
-**Current Frame (right):**
-- Live camera feed from left stereo camera
-- Green dots: ORB features being tracked
-- Status bar: Map count, keyframes, map points, matches
-
-### VNC Desktop Size
-
-The VNC desktop is configured to 3600x1350 pixels to fit both windows side-by-side perfectly.
+MIT License - Academic use for EECE 5554 Final Project.

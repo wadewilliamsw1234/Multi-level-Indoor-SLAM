@@ -1,0 +1,13 @@
+Algorithm,Floor,Drift_m,Drift_pct,Length_m,Poses,Paper_ATE_m
+lego_loam,5th_floor,0.7471,0.3971,188.14,1095,0.395
+lego_loam,1st_floor,0.3291,0.4464,73.73,319,0.256
+lego_loam,4th_floor,0.1376,0.2079,66.16,327,0.789
+lego_loam,2nd_floor,0.1067,0.0790,135.02,665,0.286
+orb_slam3,5th_floor,0.7027,0.4626,151.89,7800,0.516
+orb_slam3,1st_floor,12.0105,38.1278,31.50,1991,0.949
+orb_slam3,4th_floor,0.5653,0.9747,58.00,2617,0.483
+orb_slam3,2nd_floor,1.9710,1.8420,107.00,5191,0.31
+droid_slam,5th_floor,0.6169,0.3297,187.10,876,0.441
+droid_slam,1st_floor,0.2821,0.3848,73.31,256,0.666
+droid_slam,4th_floor,0.0815,0.1240,65.76,262,0.112
+droid_slam,2nd_floor,3.5293,2.6125,135.09,532,0.214

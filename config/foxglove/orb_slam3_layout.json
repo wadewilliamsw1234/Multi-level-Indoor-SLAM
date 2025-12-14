@@ -1,0 +1,148 @@
+{
+  "configById": {},
+  "globalVariables": {},
+  "userNodes": {},
+  "linkedGlobalVariables": [],
+  "playbackConfig": {
+    "speed": 1
+  },
+  "layout": {
+    "direction": "row",
+    "first": {
+      "direction": "column",
+      "first": {
+        "activeTabId": "LeftCam",
+        "tabs": [
+          {
+            "id": "LeftCam",
+            "title": "Left Camera (cam1)",
+            "config": {
+              "cameraTopic": "/camera_array/cam1/image_raw",
+              "enabledMarkerTopics": [],
+              "transformMarkers": true,
+              "synchronize": true,
+              "smooth": false,
+              "flipHorizontal": false,
+              "flipVertical": false,
+              "minValue": 0,
+              "maxValue": 255,
+              "rotation": 0
+            }
+          }
+        ]
+      },
+      "second": {
+        "activeTabId": "RightCam",
+        "tabs": [
+          {
+            "id": "RightCam",
+            "title": "Right Camera (cam3)",
+            "config": {
+              "cameraTopic": "/camera_array/cam3/image_raw",
+              "enabledMarkerTopics": [],
+              "transformMarkers": true,
+              "synchronize": true,
+              "smooth": false,
+              "flipHorizontal": false,
+              "flipVertical": false,
+              "minValue": 0,
+              "maxValue": 255,
+              "rotation": 0
+            }
+          }
+        ]
+      },
+      "splitPercentage": 50
+    },
+    "second": {
+      "direction": "column",
+      "first": {
+        "activeTabId": "3D",
+        "tabs": [
+          {
+            "id": "3D",
+            "title": "3D Trajectory",
+            "config": {
+              "followTf": "",
+              "scene": {
+                "enableStats": false,
+                "backgroundColor": "#1a1a2e"
+              },
+              "cameraState": {
+                "perspective": false,
+                "distance": 80,
+                "phi": 0,
+                "thetaOffset": 0,
+                "targetOffset": [0, 0, 0],
+                "target": [0, 0, 0],
+                "targetOrientation": [0, 0, 0, 1],
+                "fovy": 45,
+                "near": 0.5,
+                "far": 5000
+              },
+              "topics": {
+                "/orb_slam3/trajectory": {
+                  "visible": true
+                },
+                "/orb_slam3/camera_pose": {
+                  "visible": true
+                }
+              },
+              "publish": {
+                "type": "point",
+                "poseTopic": "/move_base_simple/goal",
+                "pointTopic": "/clicked_point"
+              }
+            }
+          }
+        ]
+      },
+      "second": {
+        "direction": "column",
+        "first": {
+          "activeTabId": "Plot",
+          "tabs": [
+            {
+              "id": "Plot",
+              "title": "Position Plot",
+              "config": {
+                "paths": [
+                  {
+                    "value": "/orb_slam3/camera_pose.pose.position.x",
+                    "enabled": true,
+                    "timestampMethod": "receiveTime"
+                  },
+                  {
+                    "value": "/orb_slam3/camera_pose.pose.position.y",
+                    "enabled": true,
+                    "timestampMethod": "receiveTime"
+                  }
+                ],
+                "showXAxisLabels": true,
+                "showYAxisLabels": true,
+                "showLegend": true,
+                "legendDisplay": "floating",
+                "showPlotValuesInLegend": true,
+                "isSynced": true,
+                "xAxisVal": "timestamp"
+              }
+            }
+          ]
+        },
+        "second": {
+          "activeTabId": "Topics",
+          "tabs": [
+            {
+              "id": "Topics",
+              "title": "Topic List",
+              "config": {}
+            }
+          ]
+        },
+        "splitPercentage": 60
+      },
+      "splitPercentage": 55
+    },
+    "splitPercentage": 45
+  }
+}

@@ -1,0 +1,58 @@
+======================================================================
+LeGO-LOAM SEMANTIC GATING ANALYSIS
+======================================================================
+
+TRAJECTORY SUMMARY
+--------------------------------------------------
+  Total poses: 2406
+  Sequences loaded: 4
+  Total duration: 1473.5 seconds
+
+FLOOR DISTRIBUTION
+--------------------------------------------------
+  Floor 1: 319 poses (13.3%)
+  Floor 2: 665 poses (27.6%)
+  Floor 4: 327 poses (13.6%)
+  Floor 5: 1095 poses (45.5%)
+
+LOOP CLOSURE ANALYSIS (Simulated)
+--------------------------------------------------
+  Total candidates detected: 87044
+  Same-floor (valid): 21477
+  Cross-floor (perceptual aliasing): 65567
+  Cross-floor rate: 75.3%
+
+IMPACT ASSESSMENT
+--------------------------------------------------
+  Without semantic gating:
+    - 65567 false loop closures would occur
+    - ICP matching could align structurally similar floors
+
+  With floor-based semantic gating:
+    - 65567 false positives rejected
+    - 21477 true loop closures preserved
+
+EXAMPLE CROSS-FLOOR FALSE MATCHES
+--------------------------------------------------
+  1. Frame 0 (Floor 5) matched Frame 2388 (Floor 2)
+      Spatial distance: 1.87m
+      REJECTED: Different floors
+  2. Frame 0 (Floor 5) matched Frame 1401 (Floor 1)
+      Spatial distance: 1.85m
+      REJECTED: Different floors
+  3. Frame 0 (Floor 5) matched Frame 2344 (Floor 2)
+      Spatial distance: 1.98m
+      REJECTED: Different floors
+  4. Frame 0 (Floor 5) matched Frame 2343 (Floor 2)
+      Spatial distance: 1.86m
+      REJECTED: Different floors
+  5. Frame 0 (Floor 5) matched Frame 2342 (Floor 2)
+      Spatial distance: 1.76m
+      REJECTED: Different floors
+
+======================================================================
+NOTE: LiDAR-based SLAM (LeGO-LOAM) uses geometric matching via ICP,
+      which is less susceptible to appearance-based aliasing than
+      visual methods. However, structurally similar floors can still
+      cause false matches, making semantic gating valuable.
+======================================================================

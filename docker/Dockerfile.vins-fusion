@@ -1,0 +1,91 @@
+# VINS-Fusion Dockerfile for ISEC SLAM Benchmarking
+# Comprehensive OpenCV 4 patches + Ceres 1.14.0
+FROM ros:noetic-perception
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    cmake build-essential git pkg-config \
+    libgoogle-glog-dev libgflags-dev libatlas-base-dev \
+    libeigen3-dev libsuitesparse-dev libopencv-dev \
+    ros-noetic-cv-bridge ros-noetic-image-transport \
+    ros-noetic-tf ros-noetic-message-filters \
+    ros-noetic-nav-msgs ros-noetic-visualization-msgs \
+    python3-pip python3-catkin-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Ceres Solver 1.14.0 (compatible with VINS-Fusion)
+WORKDIR /tmp
+RUN git clone --depth 1 --branch 1.14.0 https://ceres-solver.googlesource.com/ceres-solver && \
+    cd ceres-solver && mkdir build && cd build && \
+    cmake .. -DBUILD_TESTING=OFF -DBUILD_EXAMPLES=OFF && \
+    make -j$(nproc) && make install && \
+    cd /tmp && rm -rf ceres-solver
+
+# Create catkin workspace
+WORKDIR /catkin_ws/src
+RUN /bin/bash -c "source /opt/ros/noetic/setup.bash && catkin_init_workspace"
+
+# Clone original VINS-Fusion
+RUN git clone https://github.com/HKUST-Aerial-Robotics/VINS-Fusion.git
+
+# Comprehensive OpenCV 4 patches - ALL constant renames
+RUN find /catkin_ws/src/VINS-Fusion -type f \( -name "*.cpp" -o -name "*.cc" -o -name "*.hpp" -o -name "*.h" \) \
+    -exec sed -i \
+    -e 's/CV_BGR2GRAY/cv::COLOR_BGR2GRAY/g' \
+    -e 's/CV_RGB2GRAY/cv::COLOR_RGB2GRAY/g' \
+    -e 's/CV_GRAY2BGR/cv::COLOR_GRAY2BGR/g' \
+    -e 's/CV_GRAY2RGB/cv::COLOR_GRAY2RGB/g' \
+    -e 's/CV_BGR2RGB/cv::COLOR_BGR2RGB/g' \
+    -e 's/CV_RGB2BGR/cv::COLOR_RGB2BGR/g' \
+    -e 's/CV_LOAD_IMAGE_GRAYSCALE/cv::IMREAD_GRAYSCALE/g' \
+    -e 's/CV_LOAD_IMAGE_COLOR/cv::IMREAD_COLOR/g' \
+    -e 's/CV_LOAD_IMAGE_UNCHANGED/cv::IMREAD_UNCHANGED/g' \
+    -e 's/CV_THRESH_BINARY_INV/cv::THRESH_BINARY_INV/g' \
+    -e 's/CV_THRESH_BINARY/cv::THRESH_BINARY/g' \
+    -e 's/CV_THRESH_TRUNC/cv::THRESH_TRUNC/g' \
+    -e 's/CV_THRESH_TOZERO_INV/cv::THRESH_TOZERO_INV/g' \
+    -e 's/CV_THRESH_TOZERO/cv::THRESH_TOZERO/g' \
+    -e 's/CV_THRESH_OTSU/cv::THRESH_OTSU/g' \
+    -e 's/CV_ADAPTIVE_THRESH_MEAN_C/cv::ADAPTIVE_THRESH_MEAN_C/g' \
+    -e 's/CV_ADAPTIVE_THRESH_GAUSSIAN_C/cv::ADAPTIVE_THRESH_GAUSSIAN_C/g' \
+    -e 's/CV_SHAPE_RECT/cv::MORPH_RECT/g' \
+    -e 's/CV_SHAPE_CROSS/cv::MORPH_CROSS/g' \
+    -e 's/CV_SHAPE_ELLIPSE/cv::MORPH_ELLIPSE/g' \
+    -e 's/CV_RETR_EXTERNAL/cv::RETR_EXTERNAL/g' \
+    -e 's/CV_RETR_LIST/cv::RETR_LIST/g' \
+    -e 's/CV_RETR_CCOMP/cv::RETR_CCOMP/g' \
+    -e 's/CV_RETR_TREE/cv::RETR_TREE/g' \
+    -e 's/CV_CHAIN_APPROX_NONE/cv::CHAIN_APPROX_NONE/g' \
+    -e 's/CV_CHAIN_APPROX_SIMPLE/cv::CHAIN_APPROX_SIMPLE/g' \
+    -e 's/CV_CHAIN_APPROX_TC89_L1/cv::CHAIN_APPROX_TC89_L1/g' \
+    -e 's/CV_CHAIN_APPROX_TC89_KCOS/cv::CHAIN_APPROX_TC89_KCOS/g' \
+    -e 's/CV_AA/cv::LINE_AA/g' \
+    -e 's/CV_FILLED/cv::FILLED/g' \
+    -e 's/CV_FONT_HERSHEY_SIMPLEX/cv::FONT_HERSHEY_SIMPLEX/g' \
+    -e 's/CV_FONT_HERSHEY_PLAIN/cv::FONT_HERSHEY_PLAIN/g' \
+    -e 's/CV_FONT_HERSHEY_DUPLEX/cv::FONT_HERSHEY_DUPLEX/g' \
+    -e 's/CV_FONT_HERSHEY_COMPLEX/cv::FONT_HERSHEY_COMPLEX/g' \
+    -e 's/CV_FONT_HERSHEY_TRIPLEX/cv::FONT_HERSHEY_TRIPLEX/g' \
+    -e 's/CV_TERMCRIT_ITER/cv::TermCriteria::COUNT/g' \
+    -e 's/CV_TERMCRIT_EPS/cv::TermCriteria::EPS/g' \
+    -e 's/CV_CALIB_CB_ADAPTIVE_THRESH/cv::CALIB_CB_ADAPTIVE_THRESH/g' \
+    -e 's/CV_CALIB_CB_NORMALIZE_IMAGE/cv::CALIB_CB_NORMALIZE_IMAGE/g' \
+    -e 's/CV_CALIB_CB_FILTER_QUADS/cv::CALIB_CB_FILTER_QUADS/g' \
+    -e 's/CV_CALIB_CB_FAST_CHECK/cv::CALIB_CB_FAST_CHECK/g' \
+    {} \;
+
+# Disable global_fusion (needs GeographicLib, not needed for indoor SLAM)
+# Using printf instead of echo -e to avoid shell interpretation issues
+RUN printf 'cmake_minimum_required(VERSION 3.0)\nproject(global_fusion)\n' > /catkin_ws/src/VINS-Fusion/global_fusion/CMakeLists.txt
+
+# Build VINS-Fusion
+WORKDIR /catkin_ws
+RUN /bin/bash -c "source /opt/ros/noetic/setup.bash && catkin_make -DCMAKE_BUILD_TYPE=Release"
+
+# Create output directories
+RUN mkdir -p /results/trajectories/vins_fusion /results/logs
+
+WORKDIR /catkin_ws
+CMD ["/bin/bash", "-c", "source /opt/ros/noetic/setup.bash && source /catkin_ws/devel/setup.bash && /bin/bash"]

@@ -1,0 +1,69 @@
+# Basalt Dockerfile for ISEC SLAM Benchmarking
+# Ubuntu 22.04 + CMake 3.28 with all required dependencies
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Etc/UTC
+
+# Install base dependencies and Kitware CMake repo
+RUN apt-get update && apt-get install -y \
+    software-properties-common \
+    wget \
+    gnupg \
+    ca-certificates \
+    && wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null \
+    && echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ jammy main' | tee /etc/apt/sources.list.d/kitware.list >/dev/null \
+    && apt-get update \
+    && apt-get install -y cmake \
+    && cmake --version
+
+# Install ALL Basalt dependencies including libepoxy-dev for Pangolin
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    git \
+    pkg-config \
+    ninja-build \
+    libeigen3-dev \
+    libfmt-dev \
+    libtbb-dev \
+    libglew-dev \
+    libglfw3-dev \
+    libepoxy-dev \
+    liblz4-dev \
+    libbz2-dev \
+    libboost-all-dev \
+    libopencv-dev \
+    libpng-dev \
+    libjpeg-dev \
+    libtiff-dev \
+    libavcodec-dev \
+    libavutil-dev \
+    libavformat-dev \
+    libswscale-dev \
+    libgoogle-glog-dev \
+    libgflags-dev \
+    libatlas-base-dev \
+    libsuitesparse-dev \
+    libglm-dev \
+    libblas-dev \
+    liblapack-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone Basalt with submodules
+WORKDIR /opt
+RUN git clone --recursive https://gitlab.com/VladyslavUsenko/basalt.git
+
+WORKDIR /opt/basalt
+
+# Build Basalt with CMAKE_POLICY_VERSION_MINIMUM to handle old CMakeLists.txt in submodules
+RUN mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -GNinja && \
+    ninja -j$(nproc)
+
+# Create output directories
+RUN mkdir -p /results/trajectories/basalt /results/logs
+
+ENV PATH="/opt/basalt/build:${PATH}"
+
+WORKDIR /opt/basalt
+CMD ["/bin/bash"]
